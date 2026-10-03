@@ -1,0 +1,237 @@
+{
+  "$defs": {
+    "BlockEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "block_id": {
+          "pattern": "^blk_\\d{6,}$",
+          "title": "Block Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "block_id"
+      ],
+      "title": "BlockEvidence",
+      "type": "object"
+    },
+    "ClaimDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "statement": {
+          "maxLength": 1200,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Statement",
+          "type": "string"
+        },
+        "claim_type": {
+          "$ref": "#/$defs/ClaimType"
+        },
+        "concept_terms": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "maxItems": 12,
+          "title": "Concept Terms",
+          "type": "array"
+        },
+        "importance": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Importance",
+          "type": "number"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/BlockEvidence"
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "source_type": {
+          "const": "source",
+          "default": "source",
+          "title": "Source Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "statement",
+        "claim_type",
+        "importance",
+        "confidence",
+        "evidence"
+      ],
+      "title": "ClaimDraft",
+      "type": "object"
+    },
+    "ClaimType": {
+      "enum": [
+        "fact",
+        "claim",
+        "principle",
+        "definition",
+        "method",
+        "rule",
+        "argument",
+        "example",
+        "observation",
+        "recommendation",
+        "interpretation"
+      ],
+      "title": "ClaimType",
+      "type": "string"
+    },
+    "EngineMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "const": "codex",
+          "default": "codex",
+          "title": "Engine",
+          "type": "string"
+        }
+      },
+      "title": "EngineMetadata",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "format": "uuid",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "book_id": {
+      "format": "uuid",
+      "title": "Book Id",
+      "type": "string"
+    },
+    "edition_id": {
+      "format": "uuid",
+      "title": "Edition Id",
+      "type": "string"
+    },
+    "generation_id": {
+      "format": "uuid",
+      "title": "Generation Id",
+      "type": "string"
+    },
+    "chapter_id": {
+      "pattern": "^ch_\\d{4,}$",
+      "title": "Chapter Id",
+      "type": "string"
+    },
+    "context_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Context Hash",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "normalized_schema_version": {
+      "title": "Normalized Schema Version",
+      "type": "string"
+    },
+    "normalized_document_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Normalized Document Hash",
+      "type": "string"
+    },
+    "classification_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Classification Hash",
+      "type": "string"
+    },
+    "workflow_version": {
+      "title": "Workflow Version",
+      "type": "string"
+    },
+    "prompt_version": {
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "context_package_version": {
+      "const": "1.1",
+      "default": "1.1",
+      "title": "Context Package Version",
+      "type": "string"
+    },
+    "chunker_version": {
+      "const": "analysis-chunker-v1",
+      "default": "analysis-chunker-v1",
+      "title": "Chunker Version",
+      "type": "string"
+    },
+    "source_parse_quality": {
+      "enum": [
+        "pass",
+        "review_recommended"
+      ],
+      "title": "Source Parse Quality",
+      "type": "string"
+    },
+    "generated_by": {
+      "$ref": "#/$defs/EngineMetadata"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "chunk_id": {
+      "title": "Chunk Id",
+      "type": "string"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/ClaimDraft"
+      },
+      "maxItems": 64,
+      "title": "Claims",
+      "type": "array"
+    }
+  },
+  "required": [
+    "task_id",
+    "book_id",
+    "edition_id",
+    "generation_id",
+    "chapter_id",
+    "context_hash",
+    "source_sha256",
+    "normalized_schema_version",
+    "normalized_document_hash",
+    "classification_hash",
+    "workflow_version",
+    "prompt_version",
+    "source_parse_quality",
+    "generated_by",
+    "chunk_id",
+    "claims"
+  ],
+  "title": "ClaimResult",
+  "type": "object"
+}

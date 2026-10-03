@@ -4,11 +4,11 @@ Book Distiller 是一个本地、Codex 驱动的书籍知识蒸馏系统。
 
 ## 当前状态
 
-**Phase 3：Codex Integration Foundation。暂未实现真正书籍蒸馏。**
+**Phase 4：Knowledge Atomization Foundation。支持单章 Claims 与 Knowledge Atoms，尚不支持全书综合。**
 
-已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization、确定性 Parse Quality、Codex Workflow Protocol、Context Package 和 Book Classification。
+已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization、确定性 Parse Quality、Codex Workflow Protocol、Context Package、Book Classification、Analysis Chunk、Atomic Claims 和 Chapter Knowledge Atoms。
 Docling 在进程内解析 PDF、EPUB、DOCX、Markdown；TXT 由轻量 PlainTextAdapter 读取 UTF-8 段落。
-不推断作者、出版社或 ISBN。仍未实现 MinerU、AI 蒸馏、知识提炼、问书、Citation Verify、完整 Quality Engine 或 HTML 阅读器。
+不推断作者、出版社或 ISBN。仍未实现全书蒸馏、跨章综合、问书、Citation Verify、Fidelity / Quality Gate、MinerU 或 HTML 阅读器。
 
 ## 环境与安装
 
@@ -113,12 +113,12 @@ pytest
 - Docling primary parser：已接入进程内公共 API，当前实测 2.132.0。
 - MinerU optional isolated fallback：Phase 11 接入，独立环境。
 - Filesystem + SQLite：文件保存主体，SQLite 保存索引与基础运行/任务元数据。
-- Canonical Document Model：已实现 NormalizedBook；知识提炼模型仍未实现。
+- Canonical Document Model：已实现 NormalizedBook；知识模型限 AtomicClaim / KnowledgeAtom，尚无更高层综合。
 - Codex reasoning：V1 无需额外模型 API；未来允许 Provider Adapter。
 - Static HTML + Jinja2：未来静态阅读器，当前无模板业务。
 
 `core/ingest.py` / `core/parse.py` 编排业务；`storage` 负责持久化；`cli` 负责参数与输出。
-`parsers` 适配第三方结构，`normalize` 只消费中立记录；知识提炼、证据、完整质量、渲染包仍为占位。项目 Skill 是自然语言入口，确定性操作交给 CLI/Core。
+`parsers` 适配第三方结构，`normalize` 只消费中立记录；证据语义验证、完整质量和渲染包仍为占位。项目 Skill 是自然语言入口，确定性操作交给 CLI/Core。
 见 [ADR](docs/adr) 和 [选型说明](docs/research)。历史 ADR 中 Phase 0 边界记录保留，Phase 1 由 ADR-006 补充。
 
 `VERSION` 是唯一手工维护的版本源，当前仍为 `0.1.0-dev`，打包时规范化为 `0.1.0.dev0`。
@@ -227,4 +227,49 @@ ContextPackage 1.0 只读取 Canonical 正文，按 ID/Chapter/Section/顺序范
 
 Pydantic 是 Schema 源头，仓库 schemas/types/classification.schema.json 为其生成快照。Workflow 是任务规则权威，Prompt 提供执行指导，Skill 负责路由。详见 [ADR-008](docs/adr/ADR-008-ai-task-protocol.md) 与 [ADR-009](docs/adr/ADR-009-context-package.md)。自动测试包含 10,000 Blocks 的流式/内存/预算验证及协议拒绝、过期、重试与原子写入验证。
 
-runtime、context 和 classification 都是私人 Library 数据，不进入 Git；未来 Bundle 是否携带 runtime 暂不决定。仍不支持 Book Distillation、Atomic Claims、Knowledge Atoms、Citation Verify、HTML、Book Ask、RAG 或 MinerU。
+runtime、context 和 classification 都是私人 Library 数据，不进入 Git；未来 Bundle 是否携带 runtime 暂不决定。仍不支持全书蒸馏、跨章综合、Citation Verify、HTML、Book Ask、RAG 或 MinerU。
+
+
+## Chapter Atomization（Phase 4）
+
+在 Codex 中说“提取第 X 章 Claims”或“分析第 X 章知识原子”。Skill 用 NormalizedBook 的 Chapter ID/标题准确映射目标，先确保 Parse 和当前 Classification，再逐任务完成真实 AI 判断。CLI 只 prepare/validate/apply，不调用 LLM，不自动等待模型 API。
+
+```bash
+./book analyze claims <book> --chapter ch_0003
+# 对每个 pending Task 读取 workflow.md / prompt.md / context.md / output.schema.json
+# Codex 将结构化 Claims 写入各自 result.json（允许零条）
+./book workflow submit <task-id> --result <task-dir>/result.json
+./book analyze atoms <book> --chapter ch_0003
+# Codex 基于完整 Chapter Claims 构建 Atoms，再 submit
+./book workflow submit <atom-task-id> --result <atom-task-dir>/result.json
+./book status <book>
+```
+
+`workflow prepare extract_claims/build_chapter_atoms <book> --chapter <id>` 也可路由相同流程。普通继续会复用已完成 Chunk；明确重建使用 `analyze claims ... --force`，不会先删除旧知识结果。参数必须为确切 ch_XXXX，synthetic Document 不等于原书第一章。章节目录来自 parsed/normalized/book.json。
+
+Chunk 默认 10,000 正文字符、3,500 估算 tokens、30 Blocks，Section 优先切分，最多 1 个相邻普通正文 Block 作 context-only overlap。Table/Code/Formula 不拆，结构允许时 Figure/Caption 成对。超大单元独立成 Chunk 并警告；无法完整装入有界 Context 时明确停止，不截断证据。
+
+```text
+library/<book>/
+├── runtime/generations/<uuid>/generation.json + chunks.json
+├── runtime/tasks/<uuid>/request/context/schema/result/validation/accepted...
+└── knowledge/
+    ├── .pending/<generation>/claims.jsonl + chunks.json + claims-receipt.json
+    ├── .generations/<generation>-<publication>/
+    │   ├── claims.jsonl
+    │   ├── atoms.json
+    │   ├── chunks.json
+    │   ├── claims-receipt.json
+    │   └── chapter.json
+    └── chapters/ch_XXXX -> ../.generations/<generation>-<publication>
+```
+
+整章 Claims 全部完成后形成候选 generation，Claims-only 请求到此停止。只有 Atoms 也成功才一次切换章节 canonical 链接。失败保留上一代，runtime 不是最终知识权威。每个 Atom 经 claim_ids → Claim evidence.block_id → Normalized Block → SourceSpan 回到来源；chapter.json 保存对应 normalized generation 路径。这是结构追溯，不是 Citation Verify。
+
+Knowledge Context 为 1.1，原分类协议仍为 1.0。Classification、normalized generation、workflow/prompt/schema 变化会使相关任务 stale。Universal + Investment / Philosophy / Business 提示按分类组合并 Hash 绑定；不硬编码具体书。Claim / Atom schema 都是 1.0，由 Pydantic 生成 JSON Schema。source_type 仅 source；reasoning 是原书公开论证，不存私有思维链。importance 仅指当前章，confidence 不是 Fidelity。
+
+Atom 输入完整保留 Chapter Claims，固定上限为 120,000 Context 字符、40,000 估算 tokens（加载前 Claims 文件上限 2 MiB）。超出返回 CHAPTER_CONTEXT_TOO_LARGE，保留所有已成功 Claims 和旧章节结果，不丢弃、不无限扩容、不 recursive reduce。后续分层聚合尚未实现。
+
+结构指标仅包括 Claims/Atoms 数量、assigned/unassigned、evidence 有效性、完全重复与平均每 Atom 的 Claims。没有知识数量 KPI；0 Claims/Atoms、unassigned Claims 都允许。更多存储、恢复和版本约束见 [ADR-010](docs/adr/ADR-010-knowledge-atomization.md)。
+
+当前没有 Core Ideas、Mental Models、Meta Principles、跨章综合、Book Memory、全书去重、Citation Verify、Fidelity/Quality Gate、HTML、Book Ask、RAG 或 MinerU。逐章分析也不等于完整蒸馏整本书。

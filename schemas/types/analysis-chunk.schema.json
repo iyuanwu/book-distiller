@@ -1,0 +1,82 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "chunk_id": {
+      "title": "Chunk Id",
+      "type": "string"
+    },
+    "chapter_id": {
+      "pattern": "^ch_\\d{4,}$",
+      "title": "Chapter Id",
+      "type": "string"
+    },
+    "section_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Section Ids",
+      "type": "array"
+    },
+    "primary_blocks": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Primary Blocks",
+      "type": "array"
+    },
+    "context_blocks": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Context Blocks",
+      "type": "array"
+    },
+    "first_order": {
+      "title": "First Order",
+      "type": "integer"
+    },
+    "last_order": {
+      "title": "Last Order",
+      "type": "integer"
+    },
+    "chars": {
+      "title": "Chars",
+      "type": "integer"
+    },
+    "estimated_tokens": {
+      "title": "Estimated Tokens",
+      "type": "integer"
+    },
+    "oversized": {
+      "default": false,
+      "title": "Oversized",
+      "type": "boolean"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "chunker_version": {
+      "const": "analysis-chunker-v1",
+      "default": "analysis-chunker-v1",
+      "title": "Chunker Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "chunk_id",
+    "chapter_id",
+    "section_ids",
+    "primary_blocks",
+    "first_order",
+    "last_order",
+    "chars",
+    "estimated_tokens"
+  ],
+  "title": "AnalysisChunk",
+  "type": "object"
+}

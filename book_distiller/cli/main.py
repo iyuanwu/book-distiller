@@ -1,4 +1,4 @@
-"""Thin Phase 3 CLI for environment checks and local Library operations."""
+"""Thin Phase 4 CLI for environment checks and local Library operations."""
 import platform
 import sys
 from pathlib import Path
@@ -16,7 +16,7 @@ from book_distiller.core.models.library import Manifest
 from book_distiller.core.paths import find_project_root, storage_root
 from book_distiller.core.version import get_version
 
-app = typer.Typer(help="Book Distiller — Phase 3 Classification Foundation. Distillation is not implemented.", no_args_is_help=True)
+app = typer.Typer(help="Book Distiller — Phase 4 Chapter Knowledge Foundation. Book-wide synthesis is not implemented.", no_args_is_help=True)
 
 
 @app.command()
@@ -91,6 +91,15 @@ def _detail(manifest: Manifest, library: Path) -> None:
     ai = AITaskService(storage_root(find_project_root()), find_project_root())
     for label, value in ai.describe(library).items():
         table.add_row(Text(label), Text(value))
+    if (library/'knowledge/chapters').exists():
+        try:
+            from book_distiller.pipeline.chapter_tasks import ChapterTasks
+            from book_distiller.pipeline.canonical import load_canonical
+            document=load_canonical(library,manifest,ai.library.database)
+            for label,value in ChapterTasks(ai).describe(library,document).items():
+                table.add_row(Text(label),Text(value))
+        except BookDistillerError as exc:
+            table.add_row('Knowledge','needs_review: '+str(exc))
     Console().print(table)
     if manifest.source.copy_mode == "reference":
         typer.echo("Warning: 如果原文件以后移动或删除，该 Edition 的 Source 会失效。")
@@ -153,8 +162,16 @@ app.add_typer(workflow_app, name="workflow")
 
 
 @workflow_app.command("prepare")
-def prepare_workflow(workflow: str, book: str) -> None:
+def prepare_workflow(workflow: str, book: str, chapter: str | None = typer.Option(None,"--chapter")) -> None:
     """Create a budgeted Context Package and a pending AI Task."""
+    if workflow == 'extract_claims':
+        if chapter is None: raise typer.BadParameter('--chapter is required')
+        analyze_claims(book,chapter,False)
+        return
+    if workflow == 'build_chapter_atoms':
+        if chapter is None: raise typer.BadParameter('--chapter is required')
+        analyze_atoms(book,chapter)
+        return
     try:
         result = AITaskService(storage_root(find_project_root()), find_project_root()).prepare(workflow, book)
     except BookDistillerError as exc:
@@ -173,7 +190,44 @@ def submit_workflow(task_id: UUID, result: Path = typer.Option(..., "--result"))
         path = AITaskService(storage_root(find_project_root()), find_project_root()).submit(task_id, result)
     except BookDistillerError as exc:
         _error(exc)
-    typer.echo(f"Classification applied: {path}")
+    typer.echo(f"Result applied: {path}")
+
+
+analyze_app=typer.Typer(help="Prepare Chapter tasks; Codex performs reasoning.")
+app.add_typer(analyze_app,name="analyze")
+
+
+def _chapter_service():
+    from book_distiller.pipeline.chapter_tasks import ChapterTasks
+    return ChapterTasks(AITaskService(storage_root(find_project_root()),find_project_root()))
+
+
+def _show_task(task):
+    typer.echo(f"Task ID: {task.task_id}")
+    typer.echo(f"Task directory: {task.directory}")
+    typer.echo(f"Read: workflow.md, prompt.md, context.md, output.schema.json; write result.json")
+    typer.echo(f"Context: {task.context.budget.selected_chars} chars")
+
+
+@analyze_app.command("claims")
+def analyze_claims(book: str, chapter: str = typer.Option(...,"--chapter"),
+                   force: bool = typer.Option(False,"--force")):
+    """Prepare pending Chunk tasks, reusing completed checkpoints unless --force."""
+    try:
+        generation,tasks=_chapter_service().prepare_claims(book,chapter,force=force)
+    except BookDistillerError as exc: _error(exc)
+    typer.echo(f"Generation: {generation.generation_id}")
+    typer.echo(f"Chunks: {len(generation.claim_tasks)}; pending tasks: {len(tasks)}")
+    for task in tasks: _show_task(task)
+    if not tasks: typer.echo("Chapter Claims complete; prepare atoms next.")
+
+
+@analyze_app.command("atoms")
+def analyze_atoms(book: str, chapter: str = typer.Option(...,"--chapter")):
+    """Prepare one Chapter Atom task from all validated Chapter Claims."""
+    try: task=_chapter_service().prepare_atoms(book,chapter)
+    except BookDistillerError as exc: _error(exc)
+    _show_task(task)
 
 
 if __name__ == "__main__":

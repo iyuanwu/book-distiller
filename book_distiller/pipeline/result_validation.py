@@ -14,7 +14,12 @@ class ProtocolError(ValidationError):
 def validate_result(text: str, request: AIRequest, context: ContextPackage) -> BookClassification:
     """Reject invalid schemas, mismatched identity/provenance and unseen evidence."""
     try:
-        result = BookClassification.model_validate_json(text)
+        if request.task_type == 'classify_book':
+            model = BookClassification
+        else:
+            from book_distiller.core.models.knowledge import ClaimResult, AtomResult
+            model = ClaimResult if request.task_type=='extract_claims' else AtomResult
+        result = model.model_validate_json(text)
     except (PydanticValidationError, ValueError) as exc:
         raise ProtocolError("RESULT_SCHEMA_INVALID", str(exc)) from exc
     if result.task_id != request.task_id or result.book_id != request.book_id or result.edition_id != request.edition_id:
@@ -28,6 +33,10 @@ def validate_result(text: str, request: AIRequest, context: ContextPackage) -> B
     for field, value in expected.items():
         if getattr(result, field) != value:
             raise ProtocolError("STALE_CONTEXT", f"Result {field} does not match its request; prepare a new task.")
+    if request.task_type != 'classify_book':
+        from book_distiller.pipeline.knowledge_validation import validate_knowledge
+        validate_knowledge(result,context)
+        return result
     available = {block.block_id for block in context.blocks}
     if any(e.block_id not in available for e in result.evidence):
         raise ProtocolError("RESULT_EVIDENCE_INVALID", "Evidence must refer only to selected Context Package blocks.")

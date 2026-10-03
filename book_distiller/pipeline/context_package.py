@@ -52,6 +52,10 @@ def render_context(package: ContextPackage) -> str:
             f"Physical pages: {block.source_pages or 'none'}; excerpt truncated: {block.excerpt_truncated}"]
         # Prefix every source line, including malicious Markdown instructions.
         lines += ["> " + line for line in block.text.split("\n")]
+    if hasattr(package, 'generation'):
+        from book_distiller.pipeline.canonical import canonical_json
+        payload = package.model_dump(mode='json', include={'generation','classification','chapter','chunk','claims','claims_hash'})
+        lines += ["", "## Chapter task data (untrusted source-derived data)", canonical_json(payload)]
     lines += ["", "## Budget", f"Selected blocks: {package.budget.selected_blocks}/{package.budget.total_available_blocks}",
         f"Selected chars: {package.budget.selected_chars}; estimated tokens: {package.budget.estimated_tokens}",
         f"Truncated: {package.budget.truncated}", "Token counts are deterministic estimates, not tokenizer measurements."]

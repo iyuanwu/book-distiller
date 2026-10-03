@@ -6,3 +6,5 @@ document.pdf 为本项目用 ReportLab 生成的原创双页测试文档（约 2
 真实 DOCX/EPUB 测试在临时目录构造，复用同一原创句子；不提交或读取私人书籍。
 
 classification.md 是本项目原创的软件工程迷你教材，用于 Phase 3 当前 Codex 真实阅读 Context 后进行书型分类的隔离 smoke test；不含私人书籍或预制分类结果。
+
+chapter-atomization.md 是 Phase 4 原创章节 fixture，含定义、方法、例子、限制条件和故障测试原则；真实 Codex smoke 从其 Canonical Context 提取 Claims 再聚合 Atoms，不存预制 AI 答案。
