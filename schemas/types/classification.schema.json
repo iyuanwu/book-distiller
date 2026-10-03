@@ -1,0 +1,212 @@
+{
+  "$defs": {
+    "BookType": {
+      "enum": [
+        "business",
+        "management",
+        "investment",
+        "philosophy",
+        "technical",
+        "textbook",
+        "literature",
+        "biography",
+        "psychology",
+        "other"
+      ],
+      "title": "BookType",
+      "type": "string"
+    },
+    "ClassificationEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "block_id": {
+          "pattern": "^blk_\\d{6,}$",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "supports": {
+          "items": {
+            "$ref": "#/$defs/BookType"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Supports",
+          "type": "array"
+        },
+        "note": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "block_id",
+        "supports",
+        "note"
+      ],
+      "title": "ClassificationEvidence",
+      "type": "object"
+    },
+    "EngineMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "const": "codex",
+          "default": "codex",
+          "title": "Engine",
+          "type": "string"
+        }
+      },
+      "title": "EngineMetadata",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Canonical classification; AI supplies judgment, Core validates all bindings.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "format": "uuid",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "book_id": {
+      "format": "uuid",
+      "title": "Book Id",
+      "type": "string"
+    },
+    "edition_id": {
+      "format": "uuid",
+      "title": "Edition Id",
+      "type": "string"
+    },
+    "context_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Context Hash",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "normalized_schema_version": {
+      "title": "Normalized Schema Version",
+      "type": "string"
+    },
+    "normalized_document_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Normalized Document Hash",
+      "type": "string"
+    },
+    "workflow_version": {
+      "title": "Workflow Version",
+      "type": "string"
+    },
+    "prompt_version": {
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "context_package_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Context Package Version",
+      "type": "string"
+    },
+    "source_parse_quality": {
+      "enum": [
+        "pass",
+        "review_recommended"
+      ],
+      "title": "Source Parse Quality",
+      "type": "string"
+    },
+    "primary_type": {
+      "$ref": "#/$defs/BookType"
+    },
+    "secondary_types": {
+      "items": {
+        "$ref": "#/$defs/BookType"
+      },
+      "maxItems": 3,
+      "title": "Secondary Types",
+      "type": "array"
+    },
+    "tags": {
+      "items": {
+        "maxLength": 60,
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "type": "string"
+      },
+      "maxItems": 12,
+      "title": "Tags",
+      "type": "array"
+    },
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/ClassificationEvidence"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Evidence",
+      "type": "array"
+    },
+    "rationale_summary": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Rationale Summary",
+      "type": "string"
+    },
+    "generated_by": {
+      "$ref": "#/$defs/EngineMetadata"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "human_verified": {
+      "const": false,
+      "default": false,
+      "title": "Human Verified",
+      "type": "boolean"
+    },
+    "locked": {
+      "const": false,
+      "default": false,
+      "title": "Locked",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "task_id",
+    "book_id",
+    "edition_id",
+    "context_hash",
+    "source_sha256",
+    "normalized_schema_version",
+    "normalized_document_hash",
+    "workflow_version",
+    "prompt_version",
+    "source_parse_quality",
+    "primary_type",
+    "confidence",
+    "evidence",
+    "rationale_summary",
+    "generated_by"
+  ],
+  "title": "BookClassification",
+  "type": "object"
+}

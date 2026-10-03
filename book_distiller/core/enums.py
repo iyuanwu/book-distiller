@@ -30,3 +30,16 @@ class DistillationMode(StrEnum):
     FAST = "fast"
     STANDARD = "standard"
     DEEP = "deep"
+
+
+class BookType(StrEnum):
+    BUSINESS = "business"
+    MANAGEMENT = "management"
+    INVESTMENT = "investment"
+    PHILOSOPHY = "philosophy"
+    TECHNICAL = "technical"
+    TEXTBOOK = "textbook"
+    LITERATURE = "literature"
+    BIOGRAPHY = "biography"
+    PSYCHOLOGY = "psychology"
+    OTHER = "other"

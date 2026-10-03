@@ -1,0 +1,15 @@
+# ADR-009: Task-scoped Context Package
+
+Status: accepted, Phase 3.
+
+ContextPackage 1.0 is reusable, deterministic, budgeted and auditable. AI body content comes exclusively from NormalizedBook/blocks.jsonl. The loader verifies Canonical hashes against the completed parse receipt and reads quality.json; it does not reopen raw/docling.json, raw/docling.md or source PDF/text. There is no vector search, semantic chunking, Book Memory, or external research.
+
+`build_context_package(document, task_id, workflow, selection_spec, budget)` supports metadata, outline and explicit block IDs/chapter IDs/section IDs/inclusive 1-based order ranges. Explicit selectors combine by union. `iter_selected_blocks` streams JSONL one record at a time. Two selection passes count and then extract bounded candidates; file-integrity hashing also streams. No full-body collection or block index is needed. Memory includes book.json metadata, at most one source record, and bounded excerpts; a single unusually large JSONL record is still loaded individually.
+
+Classification policy `classification-v1` uses all eligible blocks when count and character budget allow, otherwise deterministic whole-book positions, protected first/quartile/middle/last samples and representative chapter starts. The default is at most 40 blocks and 80 outline entries, 30,000 characters and 10,000 estimated tokens (3 characters/token). The effective character bound is the smaller constraint. Excerpts shrink, outline entries are removed, then blocks are removed as necessary. Very small budgets can reduce even protected coverage; insufficient room for minimum evidence fails clearly. Selection is sampling, not a claim of full semantic coverage.
+
+Accounting uses the larger of compact context.json and deterministic context.md character counts, including metadata. These are alternative representations: Codex reads Markdown and uses JSON for bindings, not two full repeated bodies. Token counts are deterministic estimates, not tokenizer measurements. Workflow/prompt/schema have separate fixed-size protocol overhead. Provenance records included chapter/block IDs, omitted blocks/outline entries, original excerpt lengths and truncation. Source page numbers are preserved without fabricating pages for unpaginated formats.
+
+context.json is the machine authority; context.md is its deterministic readable projection. SHA256 uses UTF-8 canonical JSON with sorted keys, compact separators, no NaN, and excludes only context_hash itself. Hash includes task identity, selected content, budget and versions, so it is stable for the same task/input/settings; different tasks intentionally have different hashes. The normalized fingerprint covers parse generation ID, schema/normalizer versions and hashes of book.json, blocks.jsonl and quality.json.
+
+Source titles/text/locators are untrusted data. Markdown block excerpts are quoted; workflow and Skill explicitly forbid following source instructions. Structural/schema validation cannot prove the semantic correctness of the AI classification or replace human review. Canonical evidence IDs provide an audit trail, not Citation Verify.

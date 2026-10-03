@@ -4,9 +4,9 @@ Book Distiller 是一个本地、Codex 驱动的书籍知识蒸馏系统。
 
 ## 当前状态
 
-**Phase 2：Document Foundation。暂未实现真正书籍蒸馏。**
+**Phase 3：Codex Integration Foundation。暂未实现真正书籍蒸馏。**
 
-已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization 和确定性 Parse Quality。
+已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization、确定性 Parse Quality、Codex Workflow Protocol、Context Package 和 Book Classification。
 Docling 在进程内解析 PDF、EPUB、DOCX、Markdown；TXT 由轻量 PlainTextAdapter 读取 UTF-8 段落。
 不推断作者、出版社或 ISBN。仍未实现 MinerU、AI 蒸馏、知识提炼、问书、Citation Verify、完整 Quality Engine 或 HTML 阅读器。
 
@@ -192,3 +192,39 @@ pytest --run-docling-real            # 显式运行原创 PDF/Markdown/DOCX/EPUB
 普通测试用中立 records、公开 Docling model fixture 和 mocked converter；所有数据仍隔离。
 真实集成覆盖原创双页 PDF 的页码、heading、paragraph、order、SourceSpan；
 同时覆盖 .md、.markdown、.docx、.epub。PDF fixture 的原创说明见 tests/fixtures/README.md。
+
+
+## Classification：Codex 与本地 Core 协议
+
+在项目中让 Codex 执行“给这本书分类”，项目 Skill 会解析目标、确认 Parse、prepare、阅读上下文、做出分类判断、写 result、submit 并读回正式结果。未解析时会先明确告知再 parse；解析失败停止。Python 不调用任何 LLM API，也不自行分类。
+
+```bash
+./book workflow prepare classify <slug-or-book-uuid>
+# 当前 Codex 读取返回路径的 workflow.md、prompt.md、context.md、output.schema.json
+# 依据 context.json 的身份/版本字段，将严格 JSON 写入同目录 result.json
+./book workflow submit <task-uuid> --result <runtime-task-dir>/result.json
+./book status <slug-or-book-uuid>
+```
+
+```text
+library/<slug>/
+├── runtime/tasks/<task-uuid>/
+│   ├── request.json
+│   ├── context.json / context.md
+│   ├── output.schema.json
+│   ├── workflow.md / prompt.md
+│   ├── result.json              # 提交时出现
+│   ├── validation.json          # 验证诊断
+│   └── apply.json               # 发布意图及结果摘要
+└── analysis/classification.json # 当前分类唯一权威
+```
+
+Task 使用现有 pending → completed，格式/证据错误可修正后重试同一 Task。STALE_CONTEXT 要重新 prepare 并重新判断，不能只替换 hash。强制重解析也会使旧 Context 失效。完成后的重复 submit 不覆盖更新的分类；runtime 不必永久保留，但删除后不能重试该 Task。manifest 不复制分类，SQLite 只保存 Task 状态，Run 未启用。
+
+ContextPackage 1.0 只读取 Canonical 正文，按 ID/Chapter/Section/顺序范围流式选取。默认分类采样上限 40 Blocks、80 条目录、30,000 字符、10,000 估算 tokens；正文太大时保留全书位置覆盖并截断片段。预算取 JSON/Markdown 较大值，两者是替代表达。实际选取/遗漏/截断与版本和 SHA256 均可审计。摘要 hash 排除自身字段，同一 Task 的相同输入输出稳定。
+
+分类支持十个基础书型，至多 3 个不重复次类型、12 个 lowercase kebab-case 标签。confidence 为 0–1 主观置信程度，不是数学概率。证据必须指向本 Context 的 Block；只保存短 rationale_summary，不记录隐藏思维链。review_recommended 解析仍可分类，但会保留并展示来源质量警告。人类确认/锁定字段固定 false，尚无人工覆盖操作。
+
+Pydantic 是 Schema 源头，仓库 schemas/types/classification.schema.json 为其生成快照。Workflow 是任务规则权威，Prompt 提供执行指导，Skill 负责路由。详见 [ADR-008](docs/adr/ADR-008-ai-task-protocol.md) 与 [ADR-009](docs/adr/ADR-009-context-package.md)。自动测试包含 10,000 Blocks 的流式/内存/预算验证及协议拒绝、过期、重试与原子写入验证。
+
+runtime、context 和 classification 都是私人 Library 数据，不进入 Git；未来 Bundle 是否携带 runtime 暂不决定。仍不支持 Book Distillation、Atomic Claims、Knowledge Atoms、Citation Verify、HTML、Book Ask、RAG 或 MinerU。

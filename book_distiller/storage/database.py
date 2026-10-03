@@ -166,3 +166,19 @@ class Database:
         with self.connect() as connection:
             row = connection.execute("SELECT task_id, status, created_at, updated_at FROM tasks WHERE edition_id = ? AND task_type = ? ORDER BY created_at DESC, task_id DESC LIMIT 1", (str(edition_id), "parse")).fetchone()
             return dict(row) if row else None
+
+    def lookup_task(self, task_id: UUID) -> dict[str, str] | None:
+        """Resolve an indexed task and its Library path without scanning user files."""
+        with self.connect() as connection:
+            row = connection.execute("""SELECT t.*, b.book_id, b.slug FROM tasks t
+                JOIN editions e ON e.edition_id = t.edition_id JOIN books b ON b.book_id = e.book_id
+                WHERE t.task_id = ?""", (str(task_id),)).fetchone()
+            return dict(row) if row else None
+
+
+    def complete_pending_task(self, connection: sqlite3.Connection, task_id: UUID) -> None:
+        """Complete a pending task within the caller's apply transaction."""
+        cursor = connection.execute("UPDATE tasks SET status = ?, updated_at = ? WHERE task_id = ? AND status = ?",
+            ("completed", datetime.now(timezone.utc).isoformat(), str(task_id), "pending"))
+        if cursor.rowcount != 1:
+            raise StorageError("Task changed before apply")

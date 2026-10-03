@@ -1,1 +1,1 @@
-"""Book Distiller pipeline package; Phase 0 foundation."""
+"""Deterministic file-based Codex task orchestration and context selection."""

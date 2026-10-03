@@ -1,7 +1,8 @@
-"""Thin Phase 2 CLI for environment checks and local Library operations."""
+"""Thin Phase 3 CLI for environment checks and local Library operations."""
 import platform
 import sys
 from pathlib import Path
+from uuid import UUID
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -9,12 +10,13 @@ from rich.text import Text
 from book_distiller.core.errors import BookDistillerError, ConfigurationError
 from book_distiller.core.ingest import IngestService
 from book_distiller.core.parse import ParseService
+from book_distiller.pipeline.ai_tasks import AITaskService
 from book_distiller.parsers.docling import docling_version
 from book_distiller.core.models.library import Manifest
 from book_distiller.core.paths import find_project_root, storage_root
 from book_distiller.core.version import get_version
 
-app = typer.Typer(help="Book Distiller — Phase 2 Document Foundation. Distillation is not implemented.", no_args_is_help=True)
+app = typer.Typer(help="Book Distiller — Phase 3 Classification Foundation. Distillation is not implemented.", no_args_is_help=True)
 
 
 @app.command()
@@ -86,6 +88,9 @@ def _detail(manifest: Manifest, library: Path) -> None:
     service = ParseService(storage_root(find_project_root()))
     for label, value in service.describe(library, manifest.edition.edition_id).items():
         table.add_row(Text(label), Text(value))
+    ai = AITaskService(storage_root(find_project_root()), find_project_root())
+    for label, value in ai.describe(library).items():
+        table.add_row(Text(label), Text(value))
     Console().print(table)
     if manifest.source.copy_mode == "reference":
         typer.echo("Warning: 如果原文件以后移动或删除，该 Edition 的 Source 会失效。")
@@ -141,6 +146,34 @@ def parse(book: str = typer.Argument(..., help="Exact book ID or slug."),
     typer.echo(f"Parser: {result.book.parser_metadata.parser} {result.book.parser_metadata.parser_version}")
     typer.echo(f"Blocks: {result.book.block_count} | Quality: {result.quality.status}")
     typer.echo(f"Artifacts: {result.parsed_path}")
+
+
+workflow_app = typer.Typer(help="Prepare and submit local Codex tasks; no model API.")
+app.add_typer(workflow_app, name="workflow")
+
+
+@workflow_app.command("prepare")
+def prepare_workflow(workflow: str, book: str) -> None:
+    """Create a budgeted Context Package and a pending AI Task."""
+    try:
+        result = AITaskService(storage_root(find_project_root()), find_project_root()).prepare(workflow, book)
+    except BookDistillerError as exc:
+        _error(exc)
+    typer.echo("AI task prepared")
+    typer.echo(f"Task ID: {result.task_id}")
+    for filename in ("request.json", "workflow.md", "prompt.md", "context.md", "context.json", "output.schema.json"):
+        typer.echo(f"{filename}: {result.directory / filename}")
+    typer.echo(f"Context: {result.context.budget.selected_chars} chars; {result.context.budget.selected_blocks} blocks")
+
+
+@workflow_app.command("submit")
+def submit_workflow(task_id: UUID, result: Path = typer.Option(..., "--result")) -> None:
+    """Validate a Codex result and atomically apply the canonical classification."""
+    try:
+        path = AITaskService(storage_root(find_project_root()), find_project_root()).submit(task_id, result)
+    except BookDistillerError as exc:
+        _error(exc)
+    typer.echo(f"Classification applied: {path}")
 
 
 if __name__ == "__main__":
