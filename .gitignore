@@ -30,3 +30,8 @@ htmlcov/
 *.sqlite3-journal
 *.sqlite3-wal
 *.sqlite3-shm
+
+# Parser caches and the one explicitly allowed original PDF fixture.
+/.cache/
+/models/
+!/tests/fixtures/document.pdf

@@ -154,3 +154,15 @@ class Database:
         if not row or row[0] != str(run.book_id):
             raise StorageError("Run book and edition do not match")
         connection.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (str(run.run_id), str(run.edition_id), run.mode.value, run.status.value, run.prompt_version, run.schema_version, run.pipeline_version, run.skill_version, run.created_at.isoformat(), run.updated_at.isoformat()))
+
+    def task_status(self, task_id: UUID) -> str | None:
+        """Read the persisted task outcome used to validate published parses."""
+        with self.connect() as connection:
+            row = connection.execute("SELECT status FROM tasks WHERE task_id = ?", (str(task_id),)).fetchone()
+            return row[0] if row else None
+
+    def latest_parse_task(self, edition_id: UUID) -> dict[str, str] | None:
+        """Expose the most recent parse attempt independently of the last good result."""
+        with self.connect() as connection:
+            row = connection.execute("SELECT task_id, status, created_at, updated_at FROM tasks WHERE edition_id = ? AND task_type = ? ORDER BY created_at DESC, task_id DESC LIMIT 1", (str(edition_id), "parse")).fetchone()
+            return dict(row) if row else None

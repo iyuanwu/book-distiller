@@ -22,7 +22,7 @@ def test_version():
 def test_doctor():
     result = runner.invoke(main.app, ["doctor"])
     assert result.exit_code == 0, result.output
-    assert result.output.count("OK") == 7
+    assert result.output.count("OK") == 8
 
 
 def test_doctor_missing_directory(monkeypatch, tmp_path):

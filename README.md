@@ -4,11 +4,11 @@ Book Distiller 是一个本地、Codex 驱动的书籍知识蒸馏系统。
 
 ## 当前状态
 
-**Phase 1：Ingest + Library + SQLite + CLI。暂未实现真正书籍蒸馏。**
+**Phase 2：Document Foundation。暂未实现真正书籍蒸馏。**
 
-已支持 Source File 导入、SHA256 去重、本地 Library、SQLite 元数据索引、书籍状态查询。
-PDF、EPUB 只作为文件保存，不解析正文，不推断作者、出版社、ISBN。
-当前不支持 Docling、MinerU、AI 蒸馏、问书、Citation、Quality Engine 或 HTML 阅读器。
+已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization 和确定性 Parse Quality。
+Docling 在进程内解析 PDF、EPUB、DOCX、Markdown；TXT 由轻量 PlainTextAdapter 读取 UTF-8 段落。
+不推断作者、出版社或 ISBN。仍未实现 MinerU、AI 蒸馏、知识提炼、问书、Citation Verify、完整 Quality Engine 或 HTML 阅读器。
 
 ## 环境与安装
 
@@ -37,11 +37,13 @@ setup 可重复运行，复用并检查 `.venv`，安装项目及开发依赖，
 ./book status
 ./book status sample
 ./book status <book-uuid>
+./book parse <slug-or-book-uuid>
+./book parse <slug-or-book-uuid> --force
 ```
 
 `./book` 自动使用项目 `.venv`，保留调用者的工作目录以正确解析相对输入路径。
 支持 `.pdf`、`.epub`、`.txt`、`.md`、`.markdown`、`.docx`，后缀不区分大小写。
-只校验文件是否为可读常规文件及支持的后缀，不验证格式内容，不执行 shell。
+ingest 只校验文件与后缀；parse 才进行正文解析，不执行 shell。
 
 默认复制到 `library/<slug>/source/original.<ext>`，manifest 保留原始文件名。
 `--no-copy` 不创建 source 副本，存储原文件绝对路径；**原文件移动或删除后引用会失效**。
@@ -70,8 +72,8 @@ Manifest version 为 `1.0`，SQLite schema version 为 `1`。Manifest 中 `book.
 
 数据库通过标准库 sqlite3 实现，books、editions、runs、tasks 具有主键、必要唯一约束和外键。
 未知或无版本的已有数据库拒绝自动修改。ingest、status、doctor 可安全初始化新数据库。
-doctor 检查七项：macOS、Python、项目根目录、inbox、library、backups、Database；
-它会初始化索引并检查数据库完整性与中断残留，不检查 Parser。
+doctor 检查八项：macOS、Python、项目根目录、inbox、library、backups、Database、Docling。
+它会初始化索引并检查数据库完整性；Docling 仅检查公共模块 import 和版本，不创建转换器、不解析 PDF、不下载模型。
 
 导入锁串行化本地 CLI 操作。临时目录准备完成后，在 SQLite 事务内登记记录并发布目录；
 普通失败回滚数据库并清除本次导入目录。manifest 使用临时文件 + rename 原子写入。
@@ -79,7 +81,7 @@ doctor 检查七项：macOS、Python、项目根目录、inbox、library、backu
 下次操作会明确拒绝继续并指出路径，保留数据供人工核对，不自动删除或推断恢复。
 
 遇到这类错误，先保留相关目录和数据库副本，核对 manifest/索引；不要直接修改 schema version。
-Phase 1 未提供自动恢复、索引重建、Backup 或 Snapshot 命令。
+当前未提供自动恢复、索引重建、Backup 或 Snapshot 命令。
 
 ## 隔离测试环境
 
@@ -108,17 +110,85 @@ pytest
 
 ## V1 架构原则
 
-- Docling primary parser：Phase 2 接入，当前不安装。
+- Docling primary parser：已接入进程内公共 API，当前实测 2.132.0。
 - MinerU optional isolated fallback：Phase 11 接入，独立环境。
 - Filesystem + SQLite：文件保存主体，SQLite 保存索引与基础运行/任务元数据。
-- JSON Knowledge Model：未来 Parser 必须转换为自主 Canonical Model；当前未实现知识模型。
+- Canonical Document Model：已实现 NormalizedBook；知识提炼模型仍未实现。
 - Codex reasoning：V1 无需额外模型 API；未来允许 Provider Adapter。
 - Static HTML + Jinja2：未来静态阅读器，当前无模板业务。
 
-`core/ingest.py` 编排业务；`storage` 负责 SQL 和文件操作；`cli` 负责参数和输出。
-其余解析、提炼、质量、渲染包仍为占位。项目 Skill 是自然语言入口，确定性操作交给 CLI/Core。
+`core/ingest.py` / `core/parse.py` 编排业务；`storage` 负责持久化；`cli` 负责参数与输出。
+`parsers` 适配第三方结构，`normalize` 只消费中立记录；知识提炼、证据、完整质量、渲染包仍为占位。项目 Skill 是自然语言入口，确定性操作交给 CLI/Core。
 见 [ADR](docs/adr) 和 [选型说明](docs/research)。历史 ADR 中 Phase 0 边界记录保留，Phase 1 由 ADR-006 补充。
 
 `VERSION` 是唯一手工维护的版本源，当前仍为 `0.1.0-dev`，打包时规范化为 `0.1.0.dev0`。
 私人数据目录及 SQLite 日志文件均被 Git 忽略；仅 `.gitkeep` 被保留。
 未来测试二进制只通过 `.gitignore` 精确路径例外允许。
+
+
+## Parse：产物、幂等与边界
+
+```text
+library/<slug>/
+├── manifest.json                     # 仍为 Phase 1 manifest 1.0
+├── parsed -> .parsed-generations/<task-uuid>
+│   ├── raw/
+│   │   ├── docling.json               # Docling lossless public JSON export
+│   │   ├── docling.md                 # 人工检查，不是 Canonical Model
+│   │   └── parse_metadata.json
+│   ├── normalized/
+│   │   ├── book.json                  # 小型元数据、章节和特殊内容索引
+│   │   ├── blocks.jsonl               # 统一正文流，可逐行读取
+│   │   └── quality.json
+│   └── completion.json               # 任务、缓存键、产物完整性摘要
+└── parse_failures/<task-uuid>.json     # 失败诊断（如有）
+```
+
+TXT raw 保存为 `plaintext.txt`，不伪装为 Docling 产物。
+PDF 目前默认关闭 OCR，启用表格结构解析，不启用远程推理服务。
+扫描件若没有可提取文本会 failed；正文过少但仍有文本、遗漏图形等问题需要人工检查，
+质量 pass 只表示所列确定性检查通过，不保证语义完整或证据有效。
+首次 PDF 解析可能从 Hugging Face 下载 Docling 布局/表格模型，模型缓存不属于 Git。
+下载失败明确记录失败任务，可在网络恢复后再次 parse；不会触发 MinerU。
+
+同 source SHA256、parser、parser version、normalized schema、normalizer version、配置与阈值，
+且完整产物与 completed Task 有效时返回 `Already parsed.`。每次仍重新校验 Source SHA256。
+外部引用被修改时报告 `External source has changed since ingest.`，要求重新 ingest 为新 Source。
+`--force` 只重跑 Parser + Normalize。新结果在临时目录完成并校验后原子切换 parsed 链接；
+raw 与 normalized 同时更新。失败不会先删除旧成功结果，旧代目录保留。
+这不是完整 Pipeline Rerun、Snapshot 或自动恢复服务。
+
+Task 使用已有 pending → running → completed/failed 状态；review_recommended 的解析仍 completed。
+status detail 分别展示最近成功解析与最新 Task，避免失败的 force 覆盖旧成功结果的事实。
+强制终止可能留下 running Task/临时目录/未完成的发布；系统报告需要核对，不自动恢复或清理。
+SQLite schema 保持 1、manifest 保持 1.0；没有添加重复的 manifest.parse。
+解析事实来自完整 parsed 产物，Task 状态来自 SQLite。详见 [ADR-007](docs/adr/ADR-007-normalized-document-storage.md)。
+
+## Canonical 与 SourceSpan 约定
+
+- NormalizedBook schema / normalizer version 均为 `1.0`，不 import Docling 类型。
+- Block type 包含 title、heading、paragraph、list_item、quote、table、formula、code、figure、caption、footnote、other。
+- Edition 内顺序 ID：`ch_0001`、`sec_0001_0001`、`blk_000001`；特殊内容索引指向统一 Block。
+- PDF `source_page_index` 为 0-based；`source_page_number` 为 1-based physical page。
+- EPUB、DOCX、Markdown、TXT 不伪造 PDF 页码；printed_page_label 未可靠提供时始终 null。
+- char_start/char_end 为规范化 Block 文本的半开区间；跨页且无法安全映射时为 null。
+- bbox 保留 PDF 坐标与 top-left / bottom-left 原点；parser_locator 只是来源元数据。
+- 最高有效 heading level 建 Chapter，深层 heading 建 Section 栈；title 不自动当 Chapter。
+  无明确 heading 或首个 heading 前内容使用 synthetic `Document` Chapter。不猜章节语义。
+- 只做 NFC 与换行归一，不改写、不去重、不摘要；raw 输出保留以供回溯。
+
+## Parse Quality 与测试
+
+阈值集中在 `QualityThresholds`：source_map_coverage ≥ 0.95、empty_page_ratio ≤ 0.30、
+至少 1 个字符。无可用文本/Parser 失败为 failed；覆盖不足、空页超阈值、Parser 警告或部分成功为
+review_recommended；其他情况 pass。每个 issue 包含 code、severity、message、metric、threshold。
+不制造一个无法解释的综合分数。非分页格式的页相关指标为 null。
+
+```bash
+pytest                              # 不运行真实转换，不下载模型
+pytest --run-docling-real            # 显式运行原创 PDF/Markdown/DOCX/EPUB 真实转换
+```
+
+普通测试用中立 records、公开 Docling model fixture 和 mocked converter；所有数据仍隔离。
+真实集成覆盖原创双页 PDF 的页码、heading、paragraph、order、SourceSpan；
+同时覆盖 .md、.markdown、.docx、.epub。PDF fixture 的原创说明见 tests/fixtures/README.md。

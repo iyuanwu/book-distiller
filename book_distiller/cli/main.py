@@ -1,4 +1,4 @@
-"""Thin Phase 1 CLI for environment checks and local Library operations."""
+"""Thin Phase 2 CLI for environment checks and local Library operations."""
 import platform
 import sys
 from pathlib import Path
@@ -8,11 +8,13 @@ from rich.table import Table
 from rich.text import Text
 from book_distiller.core.errors import BookDistillerError, ConfigurationError
 from book_distiller.core.ingest import IngestService
+from book_distiller.core.parse import ParseService
+from book_distiller.parsers.docling import docling_version
 from book_distiller.core.models.library import Manifest
 from book_distiller.core.paths import find_project_root, storage_root
 from book_distiller.core.version import get_version
 
-app = typer.Typer(help="Book Distiller — Phase 1 Library. Distillation is not implemented.", no_args_is_help=True)
+app = typer.Typer(help="Book Distiller — Phase 2 Document Foundation. Distillation is not implemented.", no_args_is_help=True)
 
 
 @app.command()
@@ -43,6 +45,12 @@ def doctor() -> None:
             checks.append(("Database", False, str(exc)))
         else:
             checks.append(("Database", True, str(home / "data" / "book_distiller.sqlite3")))
+    try:
+        installed = docling_version()
+    except Exception as exc:
+        checks.append(("Docling", False, str(exc)))
+    else:
+        checks.append(("Docling", True, installed))
     table = Table(title="Book Distiller Doctor")
     for heading in ("Check", "Status", "Detail"):
         table.add_column(heading)
@@ -74,6 +82,9 @@ def _detail(manifest: Manifest, library: Path) -> None:
         ("Library", str(library)), ("Status", manifest.book.status.value),
         ("Metadata", manifest.book.metadata_status), ("Created at", manifest.created_at.isoformat()),
     ):
+        table.add_row(Text(label), Text(value))
+    service = ParseService(storage_root(find_project_root()))
+    for label, value in service.describe(library, manifest.edition.edition_id).items():
         table.add_row(Text(label), Text(value))
     Console().print(table)
     if manifest.source.copy_mode == "reference":
@@ -111,6 +122,25 @@ def status(book: str | None = typer.Argument(None, help="Exact book ID or slug."
         for manifest in records:
             table.add_row(Text(manifest.book.title), Text(manifest.book.slug), str(manifest.edition.edition_id), manifest.book.status.value)
         Console().print(table)
+
+
+@app.command()
+def parse(book: str = typer.Argument(..., help="Exact book ID or slug."),
+          force: bool = typer.Option(False, "--force", help="Safely replace the last successful parse.")) -> None:
+    """Parse an indexed source and publish a canonical document. No AI distillation."""
+    try:
+        result = ParseService(storage_root(find_project_root())).parse(book, force=force)
+    except BookDistillerError as exc:
+        _error(exc)
+    if result.already_parsed:
+        typer.echo("Already parsed.")
+    elif result.quality.status == "review_recommended":
+        typer.echo("Parse completed with warnings.\nReview recommended.")
+    else:
+        typer.echo("Parse completed successfully.")
+    typer.echo(f"Parser: {result.book.parser_metadata.parser} {result.book.parser_metadata.parser_version}")
+    typer.echo(f"Blocks: {result.book.block_count} | Quality: {result.quality.status}")
+    typer.echo(f"Artifacts: {result.parsed_path}")
 
 
 if __name__ == "__main__":
