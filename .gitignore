@@ -1,0 +1,32 @@
+.venv/
+.venv-mineru/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.DS_Store
+/inbox/*
+/library/*
+/backups/*
+!/inbox/.gitkeep
+!/library/.gitkeep
+!/backups/.gitkeep
+*.pdf
+*.epub
+*.sqlite
+*.sqlite3
+*.bookbundle.zip
+# Explicit future fixture allowances go below, by exact path.
+# !/tests/fixtures/example.pdf
+/build/
+/dist/
+*.egg-info/
+
+# Global index, locks, and SQLite journal sidecars are private.
+/data/*
+!/data/.gitkeep
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
