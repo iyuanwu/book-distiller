@@ -21,7 +21,7 @@ from book_distiller.storage import book_knowledge,verification as storage
 class VerificationTasks:
     def __init__(self,ai):self.ai=ai;self.library=ai.library;self.books=BookTasks(ai)
     def rules(self):return json.loads((self.ai.project/'rules/quality/standard.json').read_text())
-    def dependencies(self,directory,document):
+    def dependencies(self,directory,document,*,allow_missing_reference=False):
         book=book_knowledge.current(directory)
         if book is None:raise ProtocolError('BOOK_SYNTHESIS_REQUIRED','Complete Book synthesis first')
         model=json.loads((book/'book_model.json').read_text())
@@ -33,7 +33,8 @@ class VerificationTasks:
         resources={n:json_hash({'workflow':hash_source(w.workflow_path)[0],'prompt':w.prompt_hash(),'schema':w.output_schema()}) for n in sorted(VERIFY_WORKFLOWS) for w in [load_workflow(self.ai.project,n,types)]}
         manifest,_=self.ai._resolve(str(document.book.book_id))
         source=Path(manifest.source.stored_path) if manifest.source.copy_mode=='reference' else directory/manifest.source.stored_path
-        if not source.exists() or hash_source(source)[0]!=document.book.source_sha256:raise ProtocolError('SOURCE_INTEGRITY_FAILURE','Original source missing or changed')
+        missing_reference=allow_missing_reference and manifest.source.copy_mode=='reference' and not source.exists()
+        if not missing_reference and (not source.exists() or hash_source(source)[0]!=document.book.source_sha256):raise ProtocolError('SOURCE_INTEGRITY_FAILURE','Original source missing or changed')
         return classification,{'book_generation_id':model['generation_id'],'book_manifest_hash':hash_source(book/'book_model.json')[0],
             'book_path':str(book.relative_to(directory)),'knowledge_dependencies':deps,'rules_hash':json_hash(self.rules()),'resources':resources},book,model
     def root(self,directory,gid):return safe_child(directory,f'runtime/verification-generations/{UUID(str(gid))}')

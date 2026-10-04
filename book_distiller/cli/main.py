@@ -17,7 +17,7 @@ from book_distiller.core.models.library import Manifest
 from book_distiller.core.paths import find_project_root, storage_root
 from book_distiller.core.version import get_version
 
-app = typer.Typer(help="Book Distiller — Phase 6 local knowledge synthesis, evidence verification and quality review.", no_args_is_help=True)
+app = typer.Typer(help="Book Distiller — Phase 7 verified knowledge and progressive static reading.", no_args_is_help=True)
 
 
 @app.command()
@@ -115,6 +115,9 @@ def _detail(manifest: Manifest, library: Path) -> None:
             document=load_canonical(library,manifest,ai.library.database)
             for label,value in VerificationTasks(ai).describe(library,document).items():table.add_row(Text(label),Text(value))
         except BookDistillerError as exc:table.add_row('Verification','failed: '+str(exc))
+    from book_distiller.renderers.service import RenderService
+    for label, value in RenderService(storage_root(find_project_root()), find_project_root()).describe(str(manifest.book.book_id), library).items():
+        table.add_row(Text(label), Text(value))
     Console().print(table)
     if manifest.source.copy_mode == "reference":
         typer.echo("Warning: 如果原文件以后移动或删除，该 Edition 的 Source 会失效。")
@@ -286,6 +289,30 @@ def verify_book(book: str, force: bool = typer.Option(False,"--force")):
         state=json.loads((service.root(result.directory.parents[2],result.context.scope['generation_id'])/'state.json').read_text())
         typer.echo(f"Verification generation: {state['generation_id']}")
         typer.echo(f"Progress: {state['cursor']} / {len(state['plan'])} tasks completed")
+
+
+
+
+@app.command()
+def render(book: str, force: bool = typer.Option(False, "--force"),
+           no_open: bool = typer.Option(False, "--no-open")) -> None:
+    """Generate the offline L0–L5 reader from current verified knowledge."""
+    from book_distiller.renderers.service import RenderService
+    import subprocess
+    try:
+        path, already, metadata = RenderService(storage_root(find_project_root()), find_project_root()).render(book, force)
+    except BookDistillerError as exc:
+        _error(exc)
+    typer.echo("Already rendered." if already else "Book Reader generated — L0–L5 ready; Evidence ready")
+    typer.echo(f"Quality     {metadata['quality_gate'].upper()}\nGeneration  {metadata['render_generation_id']}\nOutput      {path}")
+    for warning in metadata['metrics']['warnings']:
+        typer.echo('Warning: '+warning)
+    if not no_open:
+        typer.echo(f'Opening: {path}')
+        try:
+            subprocess.run(['open', str(path)], check=True, capture_output=True)
+        except (OSError, subprocess.CalledProcessError):
+            typer.echo('Could not open browser automatically. Open index.html manually.')
 
 
 if __name__ == "__main__":

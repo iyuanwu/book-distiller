@@ -4,11 +4,11 @@ Book Distiller 是一个本地、Codex 驱动的书籍知识蒸馏系统。
 
 ## 当前状态
 
-**Phase 6：Evidence & Quality Foundation。支持本地来源核验、Fidelity Review、Coverage Review 与 Quality Gate。**
+**Phase 7：L0–L5 Progressive Reading + Static HTML Reader。当前支持 Verified Knowledge Model、离线阅读、证据导航、质量面板、搜索、知识地图、知识卡片和 Markdown 导出。**
 
 已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization、确定性 Parse Quality、Codex Workflow Protocol、Context Package、Book Classification、Analysis Chunk、Atomic Claims、Chapter Knowledge Atoms、Concept Registry、跨章关联/去重决策、Core Ideas、Mental Models、Meta Principles、Book Memory、Citation Verification、Fidelity Review、Coverage Review 和 Quality Gate。
 Docling 在进程内解析 PDF、EPUB、DOCX、Markdown；TXT 由轻量 PlainTextAdapter 读取 UTF-8 段落。
-不推断作者、出版社或 ISBN。仍未完成完整 V1 蒸馏；未实现 L0–L5、HTML、问书、RAG、Embedding、MinerU 或外部研究。
+不推断作者、出版社或 ISBN。仍未完成完整 V1 蒸馏；未实现 Human Override、Book Ask、RAG、Embedding、Bundle、Backup、Benchmark、MinerU fallback 或外部研究。
 
 ## 环境与安装
 
@@ -115,7 +115,7 @@ pytest
 - Filesystem + SQLite：文件保存主体，SQLite 保存索引与基础运行/任务元数据。
 - Canonical Document Model：已实现 NormalizedBook；知识模型限 AtomicClaim / KnowledgeAtom，尚无更高层综合。
 - Codex reasoning：V1 无需额外模型 API；未来允许 Provider Adapter。
-- Static HTML + Jinja2：未来静态阅读器，当前无模板业务。
+- Static HTML + Jinja2：纯本地三栏 Reader，无服务端、前端框架或远程依赖。
 
 `core/ingest.py` / `core/parse.py` 编排业务；`storage` 负责持久化；`cli` 负责参数与输出。
 `parsers` 适配第三方结构，`normalize` 只消费中立记录；证据语义验证、完整质量和渲染包仍为占位。项目 Skill 是自然语言入口，确定性操作交给 CLI/Core。
@@ -227,7 +227,7 @@ ContextPackage 1.0 只读取 Canonical 正文，按 ID/Chapter/Section/顺序范
 
 Pydantic 是 Schema 源头，仓库 schemas/types/classification.schema.json 为其生成快照。Workflow 是任务规则权威，Prompt 提供执行指导，Skill 负责路由。详见 [ADR-008](docs/adr/ADR-008-ai-task-protocol.md) 与 [ADR-009](docs/adr/ADR-009-context-package.md)。自动测试包含 10,000 Blocks 的流式/内存/预算验证及协议拒绝、过期、重试与原子写入验证。
 
-runtime、context 和 classification 都是私人 Library 数据，不进入 Git；未来 Bundle 是否携带 runtime 暂不决定。仍不支持全书蒸馏、跨章综合、Citation Verify、HTML、Book Ask、RAG 或 MinerU。
+runtime、context 和 classification 都是私人 Library 数据，不进入 Git；未来 Bundle 是否携带 runtime 暂不决定。本节描述 Phase 3 边界；后续阶段能力以顶部当前状态为准。
 
 
 ## Chapter Atomization（Phase 4）
@@ -272,7 +272,7 @@ Atom 输入完整保留 Chapter Claims，固定上限为 120,000 Context 字符�
 
 结构指标仅包括 Claims/Atoms 数量、assigned/unassigned、evidence 有效性、完全重复与平均每 Atom 的 Claims。没有知识数量 KPI；0 Claims/Atoms、unassigned Claims 都允许。更多存储、恢复和版本约束见 [ADR-010](docs/adr/ADR-010-knowledge-atomization.md)。
 
-当前没有 Core Ideas、Mental Models、Meta Principles、跨章综合、Book Memory、全书去重、Citation Verify、Fidelity/Quality Gate、HTML、Book Ask、RAG 或 MinerU。逐章分析也不等于完整蒸馏整本书。
+本节描述 Phase 4 章节层边界；后续阶段能力以顶部当前状态为准。逐章分析不等于完成整书流程。
 
 ## Book Knowledge Synthesis（Phase 5）
 
@@ -352,8 +352,38 @@ runtime/verification-generations/<uuid>/state.json   # 私人恢复检查点
 
 完整报告才原子切换 current；失败保留旧完整 generation，运行错误另有诊断。normalized、Chapter、Book、classification、workflow/prompt/schema 或 quality rules 变化会令旧核验 stale。成功对象检查点可复用，后续失败不重做全部前置对象。
 
-`book_distiller.evidence.paths.evidence_path(library_book_directory, object_id)` 提供可查询的 generation-bound 证据图，动态取得 excerpt、context、Chapter、PDF page 和原始位置，供未来展示层使用。它不产生 HTML，且历史路径解析能力不表示旧 generation 仍是当前结果。
+`book_distiller.evidence.paths.evidence_path(library_book_directory, object_id)` 提供可查询的 generation-bound 证据图，动态取得 excerpt、context、Chapter、PDF page 和原始位置，可供定向证据检查使用。该查询函数不产生 HTML，且历史路径解析能力不表示旧 generation 仍是当前结果。
 
 Quality report 明示公式、分子、分母、阈值、verdict/issue counts 和 rechecks。`pass` 仅表示当前模型通过本地证据规则；内容问题为 `needs_review`；损坏引用/来源/产物或不能完成验证为 `failed`。Fidelity = major 对象权重之和 / major 对象数，权重 supported=1、partial=.5、unsupported/contradicted=0；高 Fidelity 不能覆盖重大幻觉。计数项分母为 null，零样本比例也为 null。
 
 parse completeness 只是已规范化 Block 的结构代理；章节覆盖不是识别准确率；major_omission_chapter_rate 是已审查章节中的遗漏发生比例，不是有 Gold Set 的关键思想遗漏率。长输入采样和语义判断的误报/漏报仍需人工 benchmark。具体决策与阈值见 [ADR-014](docs/adr/ADR-014-evidence-verification.md)、[ADR-015](docs/adr/ADR-015-quality-gate.md)、[规则](rules/quality/standard.json)。测试协议替身与真实 Codex smoke 分开记录。
+
+
+## Progressive Reading / Static Reader（Phase 7）
+
+```bash
+./book render <book>
+./book render <book> --no-open
+./book render <book> --force
+./book status <book>
+```
+
+Book synthesis 和 Verification 必须为当前依赖；Quality Gate `pass` 与 `needs_review` 可生成，后者保留醒目警告。没有核验、failed 或 stale 默认拒绝。Reader 不调用 AI、不重新总结，不写入 Canonical Knowledge 或 Verification。
+
+输出 `library/<slug>/output/` 是完整 `.reader-generations/<uuid>` 的原子链接，含 `index.html`、`assets/`、`data/`、`markdown/` 和 `render_manifest.json`。打开失败只警告，可手动双击 index.html。相同输入返回 Already rendered；`--force` 失败保留此前成功 Reader。status 对 generation、依赖、模板版本和导出完整性检查 completed / stale / unavailable。旧导出是生成时快照，离线页面不会自行探测后来发生的 canonical 变化；以 CLI status 为准。
+
+- **HTML = interactive reading**：Jinja2、系统字体、CSS、Vanilla JS；classic JS 数据包支持 `file://`，无需 fetch、服务器、Node 或网络。
+- **Markdown = portable text reading**：L0.md、L1.md、L2.md、L3.md、knowledge-model.md、quality-report.md。
+- **JSON = structured machine-readable view**：book、progressive、concepts、knowledge、evidence、quality、search、mindmap、cards。它们是可重建的 derived export，canonical 仍在 knowledge/、verification/。
+
+L0 选受支持的最高层既有 statement，过长时截取原有完整首句，仍超限时使用既有标题；不会创造一句新的“全书总结”。L1 选至多 7 Ideas / 3 Models / 2 Principles。L2 加机制、限制、有限概念目录和已选对象的章节贡献。L3 增加部分主要 Atoms/Claims（最多 16 / 24，且常规不超过各类 60%）；小模型可明显短于标称阅读时间。不为满足 3/15/60 分钟而填充内容。
+
+L0–L2 只选 supported，强证据先于重要度；重大未解决问题和 synthesis overreach 不提升为快速阅读结论。L3 可显示 partially_supported，unsupported / contradicted 保留在完整 L4/L5 并标明。L4 分组分页展示全部对象与关系；搜索支持中文、英文、别名、Claim 文本。左侧目录/章节，中间阅读，右侧对象核验/证据；窄屏用抽屉。Hash deep links 支持浏览器 Back/Forward。知识地图只包含 Principle / Model / Idea / Concept，Cards 是高层对象视图。
+
+L5 从 Citation→Block→char range 动态生成导出片段，保留 SourceSpan/parser locator；PDF 页是物理页，无页码时显示 Chapter/Section/Block。默认显示 400 字符、可展开到 800；周边上下文默认折叠、每块至多 160 字符。总嵌入证据默认 100 万字符，先保主要 Citation 范围，再保上下文；截短或预算省略明确标注，所有 Citation 位置保留。不复制整本 source。no-copy 原件已丢失时允许读取已核验 canonical 证据，Open Original unavailable；存在但变更的原件仍拒绝。
+
+规则在 `rules/reader/standard.json`：L0–L3 展示预算 300 / 2500 / 10000 / 24000 字符；L2 字符数包含选入概念名称和章节贡献。大小指标包含 HTML、data、证据字符、search entries、总文件字节；超过 20 MB 警告，超过 64 MB 拒绝发布。JSON 与 JS bundle 各保留一份数据，大小指标计入两者。所有书籍文本使用 textContent / Jinja autoescape；无 CDN、外部字体、追踪或网络请求。
+
+阅读器可重新删除生成，不能反向写入知识。只在 Ingest→Parse→Classification→Claims→Atoms→Book synthesis→Verification→Render 全部完成后称“这本书的可阅读蒸馏结果已经生成”；整个 V1 尚未全部完成。浏览器对 file:// 的 UI 自动化或原件打开可能有额外限制，路径与位置仍可手工使用。
+
+设计决策：[ADR-016](docs/adr/ADR-016-progressive-reading.md)、[ADR-017](docs/adr/ADR-017-static-reader.md)。

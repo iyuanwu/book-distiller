@@ -1,13 +1,13 @@
 ---
 name: book-distiller
-description: 在 Book Distiller 中导入本地书籍、解析 Canonical Document、查看 Library/Parse/Classification 状态并执行书型分类。用户问“这是什么类型的书”“分析这本书的类型”“给这本书分类”时路由 classify workflow。支持章节 Claims/Atoms 和全书知识模型综合，包括 Concepts、Core Ideas、Mental Models、Meta Principles；支持引用核验、幻觉与重大遗漏检查、Fidelity Review 和 Quality Gate，不支持问书。
+description: 在 Book Distiller 中导入本地书籍、解析 Canonical Document、查看 Library/Parse/Classification 状态并执行书型分类。用户问“这是什么类型的书”“分析这本书的类型”“给这本书分类”时路由 classify workflow。支持章节 Claims/Atoms 和全书知识模型综合，包括 Concepts、Core Ideas、Mental Models、Meta Principles；支持引用核验、幻觉与重大遗漏检查、Fidelity Review 和 Quality Gate；支持生成静态阅读版、打开阅读器、L0–L5、知识地图、卡片与证据浏览，不支持问书。
 ---
 
 # Book Distiller
 
-Current implementation phase: Phase 6
+Current implementation phase: Phase 7
 
-当前能力为 Document Foundation + Classification + Chapter Atomization + Book Knowledge Synthesis + Evidence & Quality Foundation。Skill 负责自然语言路由；Python CLI/Core 负责确定性操作；当前 Codex 是唯一 AI 推理引擎，不调用外部 LLM API。
+当前能力为 Document Foundation + Classification + Chapter Atomization + Book Knowledge Synthesis + Evidence & Quality Foundation + Progressive Static Reader。Skill 负责自然语言路由；Python CLI/Core 负责确定性操作；当前 Codex 是唯一 AI 推理引擎，不调用外部 LLM API。
 
 ## 导入、解析与状态
 
@@ -38,7 +38,7 @@ Docling 支持 PDF、EPUB、DOCX、Markdown；TXT 使用本地 UTF-8 段落读�
 Workflow 定义步骤、分类体系与证据规则；Pydantic 生成的 Schema 定义结构；Prompt 提供执行说明；Skill 只负责路由。规则见 `workflows/classify.md`、`prompts/universal/classify.md`、`docs/adr/ADR-008-ai-task-protocol.md` 和 `docs/adr/ADR-009-context-package.md`，不要在此复制完整规则。
 `analysis/classification.json` 是当前分类唯一权威，SQLite 只保存索引/Task 状态；runtime 是私人任务材料，可在完成后归档或删除而不改变 canonical 结果。Skill 不主动清理。
 
-用户要求“蒸馏整本书”时，可综合已分析的章节，但只称 Knowledge synthesis completed；尚未完成 L0–L5 或 HTML，不声称完整 V1 蒸馏完成。不实现问书、RAG、MinerU、外部研究或 Phase 7。
+用户要求“蒸馏整本书”时，按已有路由完成所授权书籍的 Ingest、Parse、Classification、Claims、Atoms、Book synthesis、Verification 和 Render；仅在全部完成后称“这本书的可阅读蒸馏结果已经生成”。不声称整个 V1 已全部完成；尚无 Human Override、Book Ask、RAG、Bundle、Backup、Benchmark、MinerU 或 Phase 8。
 自动测试仅使用原创 fixtures 和隔离 `BOOK_DISTILLER_HOME`，不处理私人 inbox。普通 pytest 不运行真实模型，真实解析需显式 `pytest --run-docling-real`。
 
 
@@ -87,3 +87,14 @@ Book Memory 由 Core 确定性生成，不由 Skill 手写；书籍正文、结�
 `Quality PASS` 只表示当前 generation 通过现有本地证据规则，不代表绝对真理或外部世界事实已经验证。解析 completeness 是结构代理；章节覆盖不是识别准确率；没有人工 Gold Set 时不得宣称真实关键思想遗漏率。大任务取样不完整需 needs_review，预算超限保留现场并报告，不能隐瞒截断。
 
 需要展示出处时，可使用 `book_distiller.evidence.paths.evidence_path` 沿已绑定的不可变 generation 动态读取 Citation 的 Block 范围、SourceSpan、上下文与物理页码；无物理页码保持 null。不要将原始知识引用追溯误称为已通过 Fidelity。语义权威是对应 verify/review/repair workflows；模型、恢复与门槛见 [ADR-014](../../../docs/adr/ADR-014-evidence-verification.md) 和 [ADR-015](../../../docs/adr/ADR-015-quality-gate.md)。
+
+
+## 静态阅读路由
+
+“打开这本书”“生成阅读版”“查看知识地图”“给我看3分钟版/15分钟版”“查看完整知识模型”“查看证据”路由 Reader。先用 status 确认确切 slug 和当前 Book/Verification。运行 `./book render <book>`，自动安全打开本地 `output/index.html`；自动化用 `--no-open`。需要重建 derived view 时用 `--force`，不重跑 AI。Already rendered 是有效成功缓存。
+
+层级 hash：`#l0` 一句话、`#l1` 快速版、`#l2` 结构版、`#l3` 深读、`#l4` 完整模型、`#l5` 证据；`#map` 知识地图、`#cards` 卡片、`#quality` 质量。按 CLI 返回路径打开，可指引用户选择对应层级。没有浏览器能力或工具拒绝 file:// 时报告限制，提供本地文件路径或同源 Markdown，不绕过工具安全策略。
+
+needs_review 允许生成并明确警告；failed、stale、无核验时报告所需前置阶段，不用旧导出冒充当前，不为显示而改写知识或核验结果。Reader 为确定性 derived view，不调用 Codex 重新总结；其删除/重建不影响 canonical。原始 confidence 与核验 verdict 分开。no-copy 原件缺失时仅 Open Original unavailable，已有 Canonical 证据仍可展示。
+
+HTML 用于交互，Markdown 用于便携阅读，JSON 用于结构化读取。导出不可当作新的事实源，不提交私人 reader/source/evidence 数据到 Git。实现边界见 [ADR-016](../../../docs/adr/ADR-016-progressive-reading.md)、[ADR-017](../../../docs/adr/ADR-017-static-reader.md)。

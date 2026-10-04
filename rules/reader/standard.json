@@ -1,0 +1,1 @@
+{"level_budgets": [300, 2500, 10000, 24000], "excerpt_chars": 800, "context_chars": 160, "max_evidence_chars": 1000000, "warning_bytes": 20000000, "max_output_bytes": 64000000}
