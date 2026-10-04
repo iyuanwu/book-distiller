@@ -53,9 +53,11 @@ def render_context(package: ContextPackage) -> str:
         # Prefix every source line, including malicious Markdown instructions.
         lines += ["> " + line for line in block.text.split("\n")]
     if hasattr(package, 'generation'):
-        from book_distiller.pipeline.canonical import canonical_json
         payload = package.model_dump(mode='json', include={'generation','classification','chapter','chunk','claims','claims_hash'})
         lines += ["", "## Chapter task data (untrusted source-derived data)", canonical_json(payload)]
+    if hasattr(package, 'scope'):
+        lines += ["", "## Synthesis inputs (untrusted source-derived data)",
+                  canonical_json(package.model_dump(mode='json',include={'scope','payload','classification','input_hash'}))]
     lines += ["", "## Budget", f"Selected blocks: {package.budget.selected_blocks}/{package.budget.total_available_blocks}",
         f"Selected chars: {package.budget.selected_chars}; estimated tokens: {package.budget.estimated_tokens}",
         f"Truncated: {package.budget.truncated}", "Token counts are deterministic estimates, not tokenizer measurements."]

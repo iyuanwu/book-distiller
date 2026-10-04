@@ -21,6 +21,9 @@ class KnowledgeContext(ContextPackage):
 
 
 def parse_context(text: str) -> ContextPackage:
+    if json.loads(text).get('package_version')=='1.2':
+        from book_distiller.pipeline.synthesis_context import SynthesisContext
+        return SynthesisContext.model_validate_json(text)
     model = ContextPackage if json.loads(text).get('task_type') == 'classify_book' else KnowledgeContext
     return model.model_validate_json(text)
 
@@ -67,5 +70,5 @@ def build_knowledge_context(document, task_id: UUID, workflow, generation, class
         chapter=chapter.model_dump(mode='json'),chunk=chunk,claims=claims or [],claims_hash=claims_hash)
     finalize_budget(package)
     if package.budget.selected_chars>package.budget.limits.max_chars:
-        raise ValidationError('CHAPTER_CONTEXT_TOO_LARGE: complete input exceeds budget; no claims omitted. Inspect this chapter manually; hierarchical aggregation is deferred beyond Phase 4.')
+        raise ValidationError('CHAPTER_CONTEXT_TOO_LARGE: complete input exceeds budget; no claims omitted. Use analyze atoms --reduce for bounded hierarchical aggregation.')
     return package

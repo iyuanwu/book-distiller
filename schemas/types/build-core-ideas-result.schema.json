@@ -1,0 +1,293 @@
+{
+  "$defs": {
+    "AtomDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "enum": [
+            "merge_atoms",
+            "related_to",
+            "potential_tension",
+            "contradicts",
+            "supports",
+            "depends_on"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "source_atom_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "minItems": 2,
+          "title": "Source Atom Ids",
+          "type": "array"
+        },
+        "canonical_concept_ids": {
+          "items": {
+            "pattern": "^concept_[a-z0-9]+(?:[_-][a-z0-9]+)*$",
+            "type": "string"
+          },
+          "maxItems": 24,
+          "title": "Canonical Concept Ids",
+          "type": "array"
+        },
+        "reason": {
+          "maxLength": 1200,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Reason",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "decision",
+        "source_atom_ids",
+        "reason",
+        "confidence"
+      ],
+      "title": "AtomDecision",
+      "type": "object"
+    },
+    "CoreIdea": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "core_idea_id": {
+          "pattern": "^idea_\\d{3,}$",
+          "title": "Core Idea Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Title",
+          "type": "string"
+        },
+        "statement": {
+          "maxLength": 1200,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Statement",
+          "type": "string"
+        },
+        "atom_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "minItems": 1,
+          "title": "Atom Ids",
+          "type": "array"
+        },
+        "concept_ids": {
+          "items": {
+            "pattern": "^concept_[a-z0-9]+(?:[_-][a-z0-9]+)*$",
+            "type": "string"
+          },
+          "maxItems": 24,
+          "title": "Concept Ids",
+          "type": "array"
+        },
+        "supporting_chapters": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supporting Chapters",
+          "type": "array"
+        },
+        "importance": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Importance",
+          "type": "number"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "promotion_reason": {
+          "maxLength": 1200,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Promotion Reason",
+          "type": "string"
+        },
+        "source_type": {
+          "const": "source",
+          "default": "source",
+          "title": "Source Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "core_idea_id",
+        "title",
+        "statement",
+        "atom_ids",
+        "importance",
+        "confidence",
+        "promotion_reason"
+      ],
+      "title": "CoreIdea",
+      "type": "object"
+    },
+    "EngineMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "const": "codex",
+          "default": "codex",
+          "title": "Engine",
+          "type": "string"
+        }
+      },
+      "title": "EngineMetadata",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "format": "uuid",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "book_id": {
+      "format": "uuid",
+      "title": "Book Id",
+      "type": "string"
+    },
+    "edition_id": {
+      "format": "uuid",
+      "title": "Edition Id",
+      "type": "string"
+    },
+    "generation_id": {
+      "format": "uuid",
+      "title": "Generation Id",
+      "type": "string"
+    },
+    "context_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Context Hash",
+      "type": "string"
+    },
+    "dependency_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Dependency Hash",
+      "type": "string"
+    },
+    "input_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Input Hash",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "normalized_schema_version": {
+      "title": "Normalized Schema Version",
+      "type": "string"
+    },
+    "normalized_document_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Normalized Document Hash",
+      "type": "string"
+    },
+    "classification_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Classification Hash",
+      "type": "string"
+    },
+    "workflow_version": {
+      "title": "Workflow Version",
+      "type": "string"
+    },
+    "prompt_version": {
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "context_package_version": {
+      "const": "1.2",
+      "default": "1.2",
+      "title": "Context Package Version",
+      "type": "string"
+    },
+    "source_parse_quality": {
+      "enum": [
+        "pass",
+        "review_recommended"
+      ],
+      "title": "Source Parse Quality",
+      "type": "string"
+    },
+    "generated_by": {
+      "$ref": "#/$defs/EngineMetadata"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "core_ideas": {
+      "items": {
+        "$ref": "#/$defs/CoreIdea"
+      },
+      "maxItems": 64,
+      "title": "Core Ideas",
+      "type": "array"
+    },
+    "decisions": {
+      "items": {
+        "$ref": "#/$defs/AtomDecision"
+      },
+      "maxItems": 128,
+      "title": "Decisions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "task_id",
+    "book_id",
+    "edition_id",
+    "generation_id",
+    "context_hash",
+    "dependency_hash",
+    "input_hash",
+    "source_sha256",
+    "normalized_schema_version",
+    "normalized_document_hash",
+    "classification_hash",
+    "workflow_version",
+    "prompt_version",
+    "source_parse_quality",
+    "generated_by",
+    "core_ideas"
+  ],
+  "title": "IdeasResult",
+  "type": "object"
+}

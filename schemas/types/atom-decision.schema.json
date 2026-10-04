@@ -1,0 +1,91 @@
+{
+  "$defs": {
+    "AtomReference": {
+      "additionalProperties": false,
+      "properties": {
+        "chapter_id": {
+          "title": "Chapter Id",
+          "type": "string"
+        },
+        "chapter_generation_id": {
+          "format": "uuid",
+          "title": "Chapter Generation Id",
+          "type": "string"
+        },
+        "atom_id": {
+          "title": "Atom Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "chapter_id",
+        "chapter_generation_id",
+        "atom_id"
+      ],
+      "title": "AtomReference",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "decision": {
+      "enum": [
+        "merge_atoms",
+        "related_to",
+        "potential_tension",
+        "contradicts",
+        "supports",
+        "depends_on"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "source_atom_ids": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10000,
+      "minItems": 2,
+      "title": "Source Atom Ids",
+      "type": "array"
+    },
+    "canonical_concept_ids": {
+      "items": {
+        "pattern": "^concept_[a-z0-9]+(?:[_-][a-z0-9]+)*$",
+        "type": "string"
+      },
+      "maxItems": 24,
+      "title": "Canonical Concept Ids",
+      "type": "array"
+    },
+    "reason": {
+      "maxLength": 1200,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Reason",
+      "type": "string"
+    },
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "source_atom_refs": {
+      "items": {
+        "$ref": "#/$defs/AtomReference"
+      },
+      "title": "Source Atom Refs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "decision",
+    "source_atom_ids",
+    "reason",
+    "confidence",
+    "source_atom_refs"
+  ],
+  "title": "PublishedAtomDecision",
+  "type": "object"
+}

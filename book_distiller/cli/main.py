@@ -100,6 +100,13 @@ def _detail(manifest: Manifest, library: Path) -> None:
                 table.add_row(Text(label),Text(value))
         except BookDistillerError as exc:
             table.add_row('Knowledge','needs_review: '+str(exc))
+        try:
+            from book_distiller.pipeline.book_tasks import BookTasks
+            document=load_canonical(library,manifest,ai.library.database)
+            for label,value in BookTasks(ai).describe(library,document).items():
+                table.add_row(Text(label),Text(value))
+        except BookDistillerError as exc:
+            table.add_row('Book synthesis','stale / needs_review: '+str(exc))
     Console().print(table)
     if manifest.source.copy_mode == "reference":
         typer.echo("Warning: 如果原文件以后移动或删除，该 Edition 的 Source 会失效。")
@@ -164,13 +171,20 @@ app.add_typer(workflow_app, name="workflow")
 @workflow_app.command("prepare")
 def prepare_workflow(workflow: str, book: str, chapter: str | None = typer.Option(None,"--chapter")) -> None:
     """Create a budgeted Context Package and a pending AI Task."""
+    from book_distiller.core.models.synthesis import BOOK_WORKFLOWS
+    if workflow in BOOK_WORKFLOWS:
+        if workflow == 'reduce_chapter_atoms':
+            if chapter is None: raise typer.BadParameter('--chapter is required')
+            analyze_atoms(book,chapter,True,False)
+        else: analyze_book(book,False)
+        return
     if workflow == 'extract_claims':
         if chapter is None: raise typer.BadParameter('--chapter is required')
         analyze_claims(book,chapter,False)
         return
     if workflow == 'build_chapter_atoms':
         if chapter is None: raise typer.BadParameter('--chapter is required')
-        analyze_atoms(book,chapter)
+        analyze_atoms(book,chapter,False,False)
         return
     try:
         result = AITaskService(storage_root(find_project_root()), find_project_root()).prepare(workflow, book)
@@ -203,6 +217,7 @@ def _chapter_service():
 
 
 def _show_task(task):
+    typer.echo(f"Workflow: {task.context.task_type}")
     typer.echo(f"Task ID: {task.task_id}")
     typer.echo(f"Task directory: {task.directory}")
     typer.echo(f"Read: workflow.md, prompt.md, context.md, output.schema.json; write result.json")
@@ -223,11 +238,27 @@ def analyze_claims(book: str, chapter: str = typer.Option(...,"--chapter"),
 
 
 @analyze_app.command("atoms")
-def analyze_atoms(book: str, chapter: str = typer.Option(...,"--chapter")):
+def analyze_atoms(book: str, chapter: str = typer.Option(...,"--chapter"),
+                  reduce: bool = typer.Option(False,"--reduce"), force: bool = typer.Option(False,"--force")):
     """Prepare one Chapter Atom task from all validated Chapter Claims."""
-    try: task=_chapter_service().prepare_atoms(book,chapter)
+    try:
+        if reduce:
+            from book_distiller.pipeline.book_tasks import BookTasks
+            task=BookTasks(_chapter_service().ai).prepare_chapter(book,chapter,force)
+        else: task=_chapter_service().prepare_atoms(book,chapter)
     except BookDistillerError as exc: _error(exc)
-    _show_task(task)
+    if isinstance(task,Path): typer.echo(f"Chapter published: {task}")
+    else: _show_task(task)
+
+
+@analyze_app.command("book")
+def analyze_book(book: str, force: bool = typer.Option(False,"--force")):
+    """Resume bounded Book synthesis; submit each Codex task then run again."""
+    from book_distiller.pipeline.book_tasks import BookTasks
+    try: result=BookTasks(_chapter_service().ai).prepare(book,force)
+    except BookDistillerError as exc: _error(exc)
+    if isinstance(result,Path): typer.echo(f"Book published: {result}")
+    else: _show_task(result)
 
 
 if __name__ == "__main__":

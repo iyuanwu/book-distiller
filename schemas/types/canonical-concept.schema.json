@@ -1,0 +1,209 @@
+{
+  "$defs": {
+    "AtomReference": {
+      "additionalProperties": false,
+      "properties": {
+        "chapter_id": {
+          "title": "Chapter Id",
+          "type": "string"
+        },
+        "chapter_generation_id": {
+          "format": "uuid",
+          "title": "Chapter Generation Id",
+          "type": "string"
+        },
+        "atom_id": {
+          "title": "Atom Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "chapter_id",
+        "chapter_generation_id",
+        "atom_id"
+      ],
+      "title": "AtomReference",
+      "type": "object"
+    },
+    "ClaimReference": {
+      "additionalProperties": false,
+      "properties": {
+        "chapter_id": {
+          "title": "Chapter Id",
+          "type": "string"
+        },
+        "chapter_generation_id": {
+          "format": "uuid",
+          "title": "Chapter Generation Id",
+          "type": "string"
+        },
+        "claim_id": {
+          "title": "Claim Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "chapter_id",
+        "chapter_generation_id",
+        "claim_id"
+      ],
+      "title": "ClaimReference",
+      "type": "object"
+    },
+    "ConceptRelation": {
+      "additionalProperties": false,
+      "properties": {
+        "target_concept_id": {
+          "pattern": "^concept_[a-z0-9]+(?:[_-][a-z0-9]+)*$",
+          "title": "Target Concept Id",
+          "type": "string"
+        },
+        "relation": {
+          "enum": [
+            "same_as",
+            "related_to"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 1200,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_concept_id",
+        "relation",
+        "reason"
+      ],
+      "title": "ConceptRelation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "concept_id": {
+      "pattern": "^concept_[a-z0-9]+(?:[_-][a-z0-9]+)*$",
+      "title": "Concept Id",
+      "type": "string"
+    },
+    "canonical_name": {
+      "maxLength": 80,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Canonical Name",
+      "type": "string"
+    },
+    "zh_name": {
+      "anyOf": [
+        {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "\\S",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Zh Name"
+    },
+    "aliases": {
+      "items": {
+        "maxLength": 80,
+        "minLength": 1,
+        "pattern": "\\S",
+        "type": "string"
+      },
+      "maxItems": 24,
+      "title": "Aliases",
+      "type": "array"
+    },
+    "source_terms": {
+      "items": {
+        "maxLength": 80,
+        "minLength": 1,
+        "pattern": "\\S",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Source Terms",
+      "type": "array"
+    },
+    "atom_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Atom Ids",
+      "type": "array"
+    },
+    "claim_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Claim Ids",
+      "type": "array"
+    },
+    "relations": {
+      "items": {
+        "$ref": "#/$defs/ConceptRelation"
+      },
+      "maxItems": 12,
+      "title": "Relations",
+      "type": "array"
+    },
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "human_verified": {
+      "const": false,
+      "default": false,
+      "title": "Human Verified",
+      "type": "boolean"
+    },
+    "locked": {
+      "const": false,
+      "default": false,
+      "title": "Locked",
+      "type": "boolean"
+    },
+    "atom_refs": {
+      "items": {
+        "$ref": "#/$defs/AtomReference"
+      },
+      "title": "Atom Refs",
+      "type": "array"
+    },
+    "claim_refs": {
+      "items": {
+        "$ref": "#/$defs/ClaimReference"
+      },
+      "title": "Claim Refs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "concept_id",
+    "canonical_name",
+    "source_terms",
+    "confidence",
+    "atom_refs",
+    "claim_refs"
+  ],
+  "title": "PublishedConcept",
+  "type": "object"
+}

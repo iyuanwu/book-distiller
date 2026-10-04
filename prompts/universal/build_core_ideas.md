@@ -1,0 +1,3 @@
+<!-- prompt_version: build-core-ideas-v1.0 -->
+Integrate recurrent or structurally central propositions into Core Ideas, referencing supplied item IDs in atom_ids and valid concept IDs. Derive supporting_chapters from ALL cited items. Separately record merge_atoms only for equivalent propositions, related_to for complements and potential_tension/contradicts for unresolved conflicts. Do not infer equivalence merely from shared terminology. Preserve qualifications. Never delete Chapter Atoms. Empty ideas are allowed; no count KPI.
+Use source language and calibrated confidence; empty higher-level output is preferable to unsupported promotion.

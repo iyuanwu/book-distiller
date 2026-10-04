@@ -1,0 +1,92 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "principle_id": {
+      "pattern": "^principle_\\d{3,}$",
+      "title": "Principle Id",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 80,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Title",
+      "type": "string"
+    },
+    "statement": {
+      "maxLength": 1200,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Statement",
+      "type": "string"
+    },
+    "core_idea_ids": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Core Idea Ids",
+      "type": "array"
+    },
+    "model_ids": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Model Ids",
+      "type": "array"
+    },
+    "concept_ids": {
+      "items": {
+        "pattern": "^concept_[a-z0-9]+(?:[_-][a-z0-9]+)*$",
+        "type": "string"
+      },
+      "maxItems": 24,
+      "title": "Concept Ids",
+      "type": "array"
+    },
+    "supporting_chapters": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 2,
+      "title": "Supporting Chapters",
+      "type": "array"
+    },
+    "promotion_reason": {
+      "maxLength": 1200,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Promotion Reason",
+      "type": "string"
+    },
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "source_type": {
+      "const": "source",
+      "default": "source",
+      "title": "Source Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "principle_id",
+    "title",
+    "statement",
+    "supporting_chapters",
+    "promotion_reason",
+    "confidence"
+  ],
+  "title": "MetaPrinciple",
+  "type": "object"
+}

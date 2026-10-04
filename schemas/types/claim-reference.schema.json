@@ -1,0 +1,25 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "chapter_id": {
+      "title": "Chapter Id",
+      "type": "string"
+    },
+    "chapter_generation_id": {
+      "format": "uuid",
+      "title": "Chapter Generation Id",
+      "type": "string"
+    },
+    "claim_id": {
+      "title": "Claim Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "chapter_id",
+    "chapter_generation_id",
+    "claim_id"
+  ],
+  "title": "ClaimReference",
+  "type": "object"
+}

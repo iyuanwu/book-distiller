@@ -4,11 +4,11 @@ Book Distiller 是一个本地、Codex 驱动的书籍知识蒸馏系统。
 
 ## 当前状态
 
-**Phase 4：Knowledge Atomization Foundation。支持单章 Claims 与 Knowledge Atoms，尚不支持全书综合。**
+**Phase 5：Book-level Knowledge Synthesis。支持已分析章节的全书知识模型综合。**
 
-已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization、确定性 Parse Quality、Codex Workflow Protocol、Context Package、Book Classification、Analysis Chunk、Atomic Claims 和 Chapter Knowledge Atoms。
+已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization、确定性 Parse Quality、Codex Workflow Protocol、Context Package、Book Classification、Analysis Chunk、Atomic Claims、Chapter Knowledge Atoms、Concept Registry、跨章关联/去重决策、Core Ideas、Mental Models、Meta Principles 和 Book Memory。
 Docling 在进程内解析 PDF、EPUB、DOCX、Markdown；TXT 由轻量 PlainTextAdapter 读取 UTF-8 段落。
-不推断作者、出版社或 ISBN。仍未实现全书蒸馏、跨章综合、问书、Citation Verify、Fidelity / Quality Gate、MinerU 或 HTML 阅读器。
+不推断作者、出版社或 ISBN。仍未完成完整 V1 蒸馏；未实现 Citation Verify、Fidelity / Quality Gate、L0–L5、HTML、问书、RAG、Embedding、MinerU 或外部研究。
 
 ## 环境与安装
 
@@ -268,8 +268,48 @@ library/<book>/
 
 Knowledge Context 为 1.1，原分类协议仍为 1.0。Classification、normalized generation、workflow/prompt/schema 变化会使相关任务 stale。Universal + Investment / Philosophy / Business 提示按分类组合并 Hash 绑定；不硬编码具体书。Claim / Atom schema 都是 1.0，由 Pydantic 生成 JSON Schema。source_type 仅 source；reasoning 是原书公开论证，不存私有思维链。importance 仅指当前章，confidence 不是 Fidelity。
 
-Atom 输入完整保留 Chapter Claims，固定上限为 120,000 Context 字符、40,000 估算 tokens（加载前 Claims 文件上限 2 MiB）。超出返回 CHAPTER_CONTEXT_TOO_LARGE，保留所有已成功 Claims 和旧章节结果，不丢弃、不无限扩容、不 recursive reduce。后续分层聚合尚未实现。
+Atom 输入完整保留 Chapter Claims，固定上限为 120,000 Context 字符、40,000 估算 tokens（加载前 Claims 文件上限 2 MiB）。超出返回 CHAPTER_CONTEXT_TOO_LARGE，保留所有已成功 Claims 和旧章节结果，不丢弃、不无限扩容。Phase 5 可用显式 `--reduce` 进入分层聚合，原普通路径保持兼容。
 
 结构指标仅包括 Claims/Atoms 数量、assigned/unassigned、evidence 有效性、完全重复与平均每 Atom 的 Claims。没有知识数量 KPI；0 Claims/Atoms、unassigned Claims 都允许。更多存储、恢复和版本约束见 [ADR-010](docs/adr/ADR-010-knowledge-atomization.md)。
 
 当前没有 Core Ideas、Mental Models、Meta Principles、跨章综合、Book Memory、全书去重、Citation Verify、Fidelity/Quality Gate、HTML、Book Ask、RAG 或 MinerU。逐章分析也不等于完整蒸馏整本书。
+
+## Book Knowledge Synthesis（Phase 5）
+
+```bash
+./book analyze book <book>
+./book workflow submit <task-id> --result <task-dir>/result.json
+./book analyze book <book>  # 消费已接受结果并准备下一步，直到 Book published
+./book analyze book <book> --force  # 明确重建或 stale 后开始新 generation
+./book analyze atoms <book> --chapter ch_0001 --reduce
+./book status <book>
+```
+
+CLI 不调用模型；当前 Codex 读取 task 的 Workflow / Prompt / Context / Schema 完成判断。四步依次是 normalize_concepts、build_core_ideas、build_mental_models、build_meta_principles。超预算输入先进入 synthesis_reduce；长章最终使用 reduce_chapter_atoms。任务之间可中断恢复，已完成提交保持幂等。Context 1.2 使用 60,000 字符 / 20,000 估算 tokens 上限，批次最多 24 项 / 14,000 JSON 字符；单项、概念词表或已有 Registry 本身无法容纳时明确报告预算限制。不会静默丢弃引用或无限扩容。
+
+`--reduce` 逐批读取完整 Claims 的声明及 terms，保存原始 Claim 谱系，最终展开后与完整原 Claims 一起发布。它不推翻 Context 1.1 的正常章节路径；classification 仍是 1.0。中间摘要不是正式 Knowledge Object，也不等同于已经核验的原文。
+
+正式结构：
+
+```text
+knowledge/
+  chapters/ch_XXXX -> ../.generations/<chapter-generation>-<publication>/
+  book -> .book-generations/<book-generation>-<publication>/
+  .book-generations/<book-generation>-<publication>/
+    book_model.json
+    concepts.json
+    core_ideas.json
+    mental_models.json
+    meta_principles.json
+    relationships.json
+    book_memory.json
+    provenance.json
+```
+
+Book model 记录所有当前已完成 Chapter generation、不可变路径及哈希。发布的 atom_refs / claim_refs 显式包含 chapter_id、chapter_generation_id 和对象 ID；旧 Book 通过 pinned generation 解析，绝不追随当前 Chapter 链接。章节、classification、normalized generation 或工作流版本变化会使 Book status stale；旧完整结果保留。Book generation 全部成功才一次切换，发布后的 metadata 写入失败会恢复旧指针。
+
+Concept alias normalization 与 Atom merge 独立；源 Chapter Atoms 永不删除。Core Ideas 必须有 Atom，Model 必须有下层来源和源内机制，Principle 至少有两个 Ideas 或两个 Models 且跨至少两章；允许零个 Model/Principle。所有指标只是结构诊断，不是 Fidelity 或质量分数。
+
+Book Memory 1.0 由 Python 确定字段、排序和裁剪，默认 12,000 字符，记录选取/遗漏数量与 hash。它包含身份、章节状态、概念和高层对象摘要及 generation-bound 来源引用，不包含全部正文。Context Builder 可显式 include_book_memory=True；同时校验 Memory hash 与依赖，并计入预算。
+
+边界与恢复规则见 ADR-011、ADR-012、ADR-013。Phase 5 测试使用原创三章 fixture 和隔离存储；1,200 Atom 压测使用合成数据，不能作为语义质量证明。真实 Codex smoke 的验收记录见 docs/phase5-acceptance.md。

@@ -1,0 +1,113 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "builder_version": {
+      "const": "book-memory-v1.0",
+      "default": "book-memory-v1.0",
+      "title": "Builder Version",
+      "type": "string"
+    },
+    "identity": {
+      "additionalProperties": true,
+      "title": "Identity",
+      "type": "object"
+    },
+    "classification": {
+      "additionalProperties": true,
+      "title": "Classification",
+      "type": "object"
+    },
+    "outline": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Outline",
+      "type": "array"
+    },
+    "concepts": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Concepts",
+      "type": "array"
+    },
+    "core_ideas": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Core Ideas",
+      "type": "array"
+    },
+    "mental_models": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Mental Models",
+      "type": "array"
+    },
+    "meta_principles": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Meta Principles",
+      "type": "array"
+    },
+    "unresolved_conflicts": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Unresolved Conflicts",
+      "type": "array"
+    },
+    "max_chars": {
+      "exclusiveMinimum": 0,
+      "title": "Max Chars",
+      "type": "integer"
+    },
+    "selected_chars": {
+      "minimum": 0,
+      "title": "Selected Chars",
+      "type": "integer"
+    },
+    "omitted": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Omitted",
+      "type": "object"
+    },
+    "book_memory_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Book Memory Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "identity",
+    "classification",
+    "outline",
+    "concepts",
+    "core_ideas",
+    "mental_models",
+    "meta_principles",
+    "unresolved_conflicts",
+    "max_chars",
+    "selected_chars",
+    "omitted",
+    "book_memory_hash"
+  ],
+  "title": "BookMemory",
+  "type": "object"
+}

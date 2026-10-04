@@ -1,0 +1,15 @@
+# ADR-011: Book-level synthesis and bounded Reduce
+
+Status: accepted for Phase 5.
+
+Book synthesis reuses the Phase 3 file Task protocol. Classification Context 1.0 and Chapter Context 1.1 remain unchanged; Book/Reduce Context is 1.2. Python builds, validates and publishes; current Codex supplies judgments. No model API exists.
+
+Normalize concepts, build Core Ideas, promote Mental Models and promote Meta Principles are separately retryable tasks. Intermediate Reduce tasks partition their entire input exactly once, decrease item count and keep original lineage. Runtime groups are not Canonical Knowledge Objects. Final references expand to original Atoms/Claims. Groups do not imply semantic equivalence. Limits are 24 items / 14,000 serialized characters per batch, 60,000 characters / 20,000 estimated tokens per complete Book Context, 20 Reduce levels, and a 128 KiB result limit. Oversized indivisible items or a large retained terminology registry produce explicit budget errors rather than silent truncation.
+
+`analyze atoms --reduce` extends long Chapter processing without replacing the normal Phase 4 route. It streams the accepted Claims snapshot into bounded inputs and publishes original Claims plus expanded Atoms together. AI drafts remain bounded; canonical Atom references permit up to 10,000 Claims. Context 1.2 is recorded on reduced canonical Atoms. Source text is not discarded from Canonical artifacts; summaries may lose semantic detail and are not fidelity verification.
+
+Book dependencies bind normalized fingerprint, classification hash, all currently completed Chapter generation IDs, immutable artifact paths and manifest hashes, and workflow/prompt/schema hashes. Short ordinal IDs are never resolved through current Chapter pointers: published `atom_refs`/`claim_refs` explicitly bind Chapter and generation, and `book_references.resolve_reference` uses the Book's pinned path. Existing generations remain readable after staleness. Whole-book reruns get a new generation; object ordinals are generation-local, not permanent semantic IDs.
+
+`knowledge/book` points atomically to one complete `.book-generations/<generation>-<publication>/` directory. All stages complete in SQLite before publication. The Book pointer is the sole canonical publication authority; SQLite has Task statuses, not a competing current Book pointer. A runtime metadata-save exception after switching restores the previous pointer. A hard process stop after a complete pointer switch leaves a complete, detectable generation; resume recognizes and finalizes the same generation. A stage error never publishes half a Book. Historical generation cleanup and a history UI are deferred.
+
+Chapter objects are never removed by deduplication. Core Ideas require Atoms. Models require Ideas or Atoms and an explicit source mechanism. Principles require at least two Ideas or two Models across at least two Chapters. Empty higher-level lists are valid. Structural metrics and source-reference checks are not Citation Verify, Fidelity or Quality Gate.

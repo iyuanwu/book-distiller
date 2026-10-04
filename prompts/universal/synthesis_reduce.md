@@ -1,0 +1,3 @@
+<!-- prompt_version: synthesis-reduce-v1.0 -->
+Make bounded intermediate thematic groups, not canonical equivalence decisions. Every supplied item ID must occur in exactly one group's source_ids. At most floor(input count / 2) groups (minimum one). Preserve disagreement, qualifications and concrete mechanisms in summaries and caveats; grouping does not assert synonyms or identical propositions. Never drop a source reference. If faithful reduction is impossible, stop and report the limitation instead of fabricating a result. Core retains original lineage and terms for later expansion.
+Use source language and calibrated confidence; empty higher-level output is preferable to unsupported promotion.

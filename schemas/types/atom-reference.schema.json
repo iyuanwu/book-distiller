@@ -1,0 +1,25 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "chapter_id": {
+      "title": "Chapter Id",
+      "type": "string"
+    },
+    "chapter_generation_id": {
+      "format": "uuid",
+      "title": "Chapter Generation Id",
+      "type": "string"
+    },
+    "atom_id": {
+      "title": "Atom Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "chapter_id",
+    "chapter_generation_id",
+    "atom_id"
+  ],
+  "title": "AtomReference",
+  "type": "object"
+}

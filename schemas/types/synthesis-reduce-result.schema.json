@@ -1,19 +1,5 @@
 {
   "$defs": {
-    "AtomType": {
-      "enum": [
-        "concept",
-        "principle",
-        "method",
-        "argument",
-        "example",
-        "rule",
-        "framework",
-        "observation"
-      ],
-      "title": "AtomType",
-      "type": "string"
-    },
     "EngineMetadata": {
       "additionalProperties": false,
       "properties": {
@@ -25,6 +11,52 @@
         }
       },
       "title": "EngineMetadata",
+      "type": "object"
+    },
+    "IntermediateGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Title",
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 600,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Summary",
+          "type": "string"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 24,
+          "minItems": 1,
+          "title": "Source Ids",
+          "type": "array"
+        },
+        "caveats": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Caveats",
+          "type": "array"
+        }
+      },
+      "required": [
+        "title",
+        "summary",
+        "source_ids"
+      ],
+      "title": "IntermediateGroup",
       "type": "object"
     }
   },
@@ -56,14 +88,19 @@
       "title": "Generation Id",
       "type": "string"
     },
-    "chapter_id": {
-      "pattern": "^ch_\\d{4,}$",
-      "title": "Chapter Id",
-      "type": "string"
-    },
     "context_hash": {
       "pattern": "^[0-9a-f]{64}$",
       "title": "Context Hash",
+      "type": "string"
+    },
+    "dependency_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Dependency Hash",
+      "type": "string"
+    },
+    "input_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Input Hash",
       "type": "string"
     },
     "source_sha256": {
@@ -94,18 +131,9 @@
       "type": "string"
     },
     "context_package_version": {
-      "default": "1.1",
-      "enum": [
-        "1.1",
-        "1.2"
-      ],
+      "const": "1.2",
+      "default": "1.2",
       "title": "Context Package Version",
-      "type": "string"
-    },
-    "chunker_version": {
-      "const": "analysis-chunker-v1",
-      "default": "analysis-chunker-v1",
-      "title": "Chunker Version",
       "type": "string"
     },
     "source_parse_quality": {
@@ -124,91 +152,14 @@
       "title": "Created At",
       "type": "string"
     },
-    "title": {
-      "maxLength": 160,
-      "minLength": 1,
-      "pattern": "\\S",
-      "title": "Title",
-      "type": "string"
-    },
-    "summary": {
-      "maxLength": 1200,
-      "minLength": 1,
-      "pattern": "\\S",
-      "title": "Summary",
-      "type": "string"
-    },
-    "atom_type": {
-      "$ref": "#/$defs/AtomType"
-    },
-    "claim_ids": {
+    "groups": {
       "items": {
-        "type": "string"
-      },
-      "maxItems": 10000,
-      "minItems": 1,
-      "title": "Claim Ids",
-      "type": "array"
-    },
-    "concept_terms": {
-      "items": {
-        "maxLength": 80,
-        "minLength": 1,
-        "pattern": "\\S",
-        "type": "string"
+        "$ref": "#/$defs/IntermediateGroup"
       },
       "maxItems": 12,
-      "title": "Concept Terms",
+      "minItems": 1,
+      "title": "Groups",
       "type": "array"
-    },
-    "reasoning": {
-      "items": {
-        "maxLength": 1200,
-        "minLength": 1,
-        "pattern": "\\S",
-        "type": "string"
-      },
-      "maxItems": 8,
-      "title": "Reasoning",
-      "type": "array"
-    },
-    "examples": {
-      "items": {
-        "maxLength": 1200,
-        "minLength": 1,
-        "pattern": "\\S",
-        "type": "string"
-      },
-      "maxItems": 8,
-      "title": "Examples",
-      "type": "array"
-    },
-    "importance": {
-      "maximum": 1,
-      "minimum": 0,
-      "title": "Importance",
-      "type": "number"
-    },
-    "confidence": {
-      "maximum": 1,
-      "minimum": 0,
-      "title": "Confidence",
-      "type": "number"
-    },
-    "source_type": {
-      "const": "source",
-      "default": "source",
-      "title": "Source Type",
-      "type": "string"
-    },
-    "atom_id": {
-      "title": "Atom Id",
-      "type": "string"
-    },
-    "claims_hash": {
-      "pattern": "^[0-9a-f]{64}$",
-      "title": "Claims Hash",
-      "type": "string"
     }
   },
   "required": [
@@ -216,8 +167,9 @@
     "book_id",
     "edition_id",
     "generation_id",
-    "chapter_id",
     "context_hash",
+    "dependency_hash",
+    "input_hash",
     "source_sha256",
     "normalized_schema_version",
     "normalized_document_hash",
@@ -226,15 +178,8 @@
     "prompt_version",
     "source_parse_quality",
     "generated_by",
-    "title",
-    "summary",
-    "atom_type",
-    "claim_ids",
-    "importance",
-    "confidence",
-    "atom_id",
-    "claims_hash"
+    "groups"
   ],
-  "title": "KnowledgeAtom",
+  "title": "ReduceResult",
   "type": "object"
 }

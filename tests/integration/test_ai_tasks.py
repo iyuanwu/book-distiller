@@ -213,7 +213,7 @@ def test_failed_first_apply_leaves_no_canonical_and_can_retry(ai_book,monkeypatc
 def test_protocol_files_and_skill_static():
     assert json.loads((PROJECT/'schemas/types/classification.schema.json').read_text())==BookClassification.model_json_schema()
     skill=(PROJECT/'.codex/skills/book-distiller/SKILL.md').read_text()
-    assert 'Current implementation phase: Phase 4' in skill
+    assert 'Current implementation phase: Phase 5' in skill
     for route in ['workflow prepare classify','workflow submit','output.schema.json','STALE_CONTEXT','classification.json']:
         assert route in skill
-    assert 'Phase 5' in skill and '不支持全书综合' in skill
+    assert 'analyze book' in skill and '未完成 Citation Verify' in skill

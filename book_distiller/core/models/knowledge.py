@@ -151,6 +151,9 @@ class AtomicClaim(ClaimDraft, KnowledgeBinding):
 
 
 class KnowledgeAtom(AtomDraft, KnowledgeBinding):
+    # Expanded Reduce lineage can exceed the bounded AI draft reference list.
+    claim_ids: list[str] = Field(min_length=1, max_length=10000)
+    context_package_version: Literal["1.1", "1.2"] = "1.1"
     atom_id: str
     claims_hash: Hash
 

@@ -1,0 +1,3 @@
+<!-- prompt_version: normalize-concepts-v1.0 -->
+Normalize terminology separately from proposition deduplication. Assign stable concept_<slug> IDs; reuse supplied existing IDs and retain their aliases. Each concept must cite supplied item IDs in atom_ids (these may be intermediate groups); claim_ids only when explicitly supplied by these items. source_terms must occur in input concept_terms. Do not invent concepts from outside knowledge. A term can belong to one canonical concept only; merge obvious synonyms, preserve distinctions. Relations only same_as or related_to. human_verified and locked stay false.
+Use source language and calibrated confidence; empty higher-level output is preferable to unsupported promotion.
