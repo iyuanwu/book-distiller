@@ -3,6 +3,7 @@ from pydantic import ValidationError as PydanticValidationError
 from book_distiller.core.errors import ValidationError
 from book_distiller.core.models.ai_tasks import AIRequest, BookClassification, ContextPackage
 from book_distiller.core.models.synthesis import RESULT_MODELS
+from book_distiller.core.models.verification import VERIFY_RESULT_MODELS
 
 
 class ProtocolError(ValidationError):
@@ -15,7 +16,9 @@ class ProtocolError(ValidationError):
 def validate_result(text: str, request: AIRequest, context: ContextPackage) -> BookClassification:
     """Reject invalid schemas, mismatched identity/provenance and unseen evidence."""
     try:
-        if request.task_type in RESULT_MODELS:
+        if request.task_type in VERIFY_RESULT_MODELS:
+            model=VERIFY_RESULT_MODELS[request.task_type]
+        elif request.task_type in RESULT_MODELS:
             model=RESULT_MODELS[request.task_type]
         elif request.task_type == 'classify_book':
             model = BookClassification
@@ -36,6 +39,10 @@ def validate_result(text: str, request: AIRequest, context: ContextPackage) -> B
     for field, value in expected.items():
         if getattr(result, field) != value:
             raise ProtocolError("STALE_CONTEXT", f"Result {field} does not match its request; prepare a new task.")
+    if request.task_type in VERIFY_RESULT_MODELS:
+        from book_distiller.pipeline.verification_validation import validate_verification
+        validate_verification(result,context)
+        return result
     if request.task_type in RESULT_MODELS:
         from book_distiller.pipeline.synthesis_validation import validate_synthesis
         validate_synthesis(result,context)

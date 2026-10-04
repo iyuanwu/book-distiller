@@ -1,0 +1,199 @@
+{
+  "$defs": {
+    "QualityMetric": {
+      "additionalProperties": false,
+      "properties": {
+        "numerator": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "ge": 0,
+          "title": "Numerator"
+        },
+        "denominator": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "ge": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Denominator"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "formula": {
+          "minLength": 1,
+          "title": "Formula",
+          "type": "string"
+        }
+      },
+      "required": [
+        "numerator",
+        "formula"
+      ],
+      "title": "QualityMetric",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "pass",
+        "needs_review",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "metrics": {
+      "additionalProperties": {
+        "$ref": "#/$defs/QualityMetric"
+      },
+      "title": "Metrics",
+      "type": "object"
+    },
+    "thresholds": {
+      "additionalProperties": true,
+      "title": "Thresholds",
+      "type": "object"
+    },
+    "gate_reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Gate Reasons",
+      "type": "array"
+    },
+    "verdict_counts": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "propertyNames": {
+        "enum": [
+          "supported",
+          "partially_supported",
+          "unsupported",
+          "contradicted"
+        ]
+      },
+      "title": "Verdict Counts",
+      "type": "object"
+    },
+    "major_verdict_counts": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "propertyNames": {
+        "enum": [
+          "supported",
+          "partially_supported",
+          "unsupported",
+          "contradicted"
+        ]
+      },
+      "title": "Major Verdict Counts",
+      "type": "object"
+    },
+    "major_objects_reviewed": {
+      "minimum": 0,
+      "title": "Major Objects Reviewed",
+      "type": "integer"
+    },
+    "major_objects_total": {
+      "minimum": 0,
+      "title": "Major Objects Total",
+      "type": "integer"
+    },
+    "issue_counts": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "propertyNames": {
+        "enum": [
+          "UNSUPPORTED_CLAIM",
+          "CONTRADICTED_CLAIM",
+          "OVERCLAIM",
+          "WEAK_EVIDENCE",
+          "BROKEN_CITATION",
+          "MAJOR_OMISSION",
+          "DUPLICATE_KNOWLEDGE",
+          "CONCEPT_DISTORTION",
+          "SYNTHESIS_OVERREACH",
+          "LOW_TRACEABILITY",
+          "LOW_CHAPTER_COVERAGE"
+        ]
+      },
+      "title": "Issue Counts",
+      "type": "object"
+    },
+    "automatic_rechecks": {
+      "minimum": 0,
+      "title": "Automatic Rechecks",
+      "type": "integer"
+    },
+    "remaining_review_items": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Remaining Review Items",
+      "type": "array"
+    },
+    "provenance": {
+      "additionalProperties": true,
+      "title": "Provenance",
+      "type": "object"
+    }
+  },
+  "required": [
+    "status",
+    "metrics",
+    "thresholds",
+    "gate_reasons",
+    "verdict_counts",
+    "major_verdict_counts",
+    "major_objects_reviewed",
+    "major_objects_total",
+    "issue_counts",
+    "automatic_rechecks",
+    "remaining_review_items",
+    "provenance"
+  ],
+  "title": "QualityReport",
+  "type": "object"
+}

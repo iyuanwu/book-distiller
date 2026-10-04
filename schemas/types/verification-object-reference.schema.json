@@ -1,0 +1,76 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "object_type": {
+      "enum": [
+        "atomic_claim",
+        "knowledge_atom",
+        "core_idea",
+        "mental_model",
+        "meta_principle"
+      ],
+      "title": "Object Type",
+      "type": "string"
+    },
+    "object_id": {
+      "title": "Object Id",
+      "type": "string"
+    },
+    "book_id": {
+      "format": "uuid",
+      "title": "Book Id",
+      "type": "string"
+    },
+    "edition_id": {
+      "format": "uuid",
+      "title": "Edition Id",
+      "type": "string"
+    },
+    "chapter_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Chapter Id"
+    },
+    "chapter_generation_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Chapter Generation Id"
+    },
+    "book_generation_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Book Generation Id"
+    }
+  },
+  "required": [
+    "object_type",
+    "object_id",
+    "book_id",
+    "edition_id"
+  ],
+  "title": "ObjectRef",
+  "type": "object"
+}

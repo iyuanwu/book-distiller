@@ -1,0 +1,3 @@
+<!-- prompt_version: coverage-review-v1.0 -->
+Read every reviewed_block_id in this bounded Chapter batch, its outline/chunks and current Claims/Atoms. Identify important source ideas absent from the supplied knowledge, distinguishing omissions from decorative details or paraphrase differences. Report MAJOR_OMISSION with source citation IDs, chapter_id and a concise missing-idea summary; do not create Claims. Record all reviewed_block_ids exactly once. Partial lower-object sampling cannot establish full coverage.
+The goal is discrimination among supported, overgeneralized and unsupported claims; not agreement with earlier Codex.

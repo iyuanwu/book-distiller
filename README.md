@@ -4,11 +4,11 @@ Book Distiller 是一个本地、Codex 驱动的书籍知识蒸馏系统。
 
 ## 当前状态
 
-**Phase 5：Book-level Knowledge Synthesis。支持已分析章节的全书知识模型综合。**
+**Phase 6：Evidence & Quality Foundation。支持本地来源核验、Fidelity Review、Coverage Review 与 Quality Gate。**
 
-已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization、确定性 Parse Quality、Codex Workflow Protocol、Context Package、Book Classification、Analysis Chunk、Atomic Claims、Chapter Knowledge Atoms、Concept Registry、跨章关联/去重决策、Core Ideas、Mental Models、Meta Principles 和 Book Memory。
+已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization、确定性 Parse Quality、Codex Workflow Protocol、Context Package、Book Classification、Analysis Chunk、Atomic Claims、Chapter Knowledge Atoms、Concept Registry、跨章关联/去重决策、Core Ideas、Mental Models、Meta Principles、Book Memory、Citation Verification、Fidelity Review、Coverage Review 和 Quality Gate。
 Docling 在进程内解析 PDF、EPUB、DOCX、Markdown；TXT 由轻量 PlainTextAdapter 读取 UTF-8 段落。
-不推断作者、出版社或 ISBN。仍未完成完整 V1 蒸馏；未实现 Citation Verify、Fidelity / Quality Gate、L0–L5、HTML、问书、RAG、Embedding、MinerU 或外部研究。
+不推断作者、出版社或 ISBN。仍未完成完整 V1 蒸馏；未实现 L0–L5、HTML、问书、RAG、Embedding、MinerU 或外部研究。
 
 ## 环境与安装
 
@@ -313,3 +313,47 @@ Concept alias normalization 与 Atom merge 独立；源 Chapter Atoms 永不删�
 Book Memory 1.0 由 Python 确定字段、排序和裁剪，默认 12,000 字符，记录选取/遗漏数量与 hash。它包含身份、章节状态、概念和高层对象摘要及 generation-bound 来源引用，不包含全部正文。Context Builder 可显式 include_book_memory=True；同时校验 Memory hash 与依赖，并计入预算。
 
 边界与恢复规则见 ADR-011、ADR-012、ADR-013。Phase 5 测试使用原创三章 fixture 和隔离存储；1,200 Atom 压测使用合成数据，不能作为语义质量证明。真实 Codex smoke 的验收记录见 docs/phase5-acceptance.md。
+
+## Evidence & Quality Foundation（Phase 6）
+
+```bash
+./book verify <book>            # 创建或恢复同一次核验，显示 Task 和进度
+# 当前 Codex 读取 Task 的 workflow/prompt/context/output.schema.json，独立判断
+./book workflow submit <task-id> --result <task-directory>/result.json
+./book verify <book>            # 继续直到 Verification published
+./book verify <book> --force    # 明确重新核验；不重跑知识蒸馏
+./book status <book>
+```
+
+前置条件是当前 classification、Chapter generations 和 Book synthesis。CLI 不调用模型；自然语言“核验这本书”“检查幻觉/重大遗漏”由 Skill 完成 AI 循环。顺序为 Claim → Atom → Core Idea → Mental Model → Meta Principle → Chapter coverage → Concept/relationship review。每层独立回到实际来源判断，不向上继承评分。
+
+Citation 1.0 用 edition、normalized generation、Block、半开字符范围派生稳定 ID；保存 SourceSpan/页码/locator/hash，不复制正文。strength 与 verdict 分开。Context 1.3 保持旧协议兼容，默认上限 48,000 字符，原文 16,000 字符，下层对象 12 个。原始 Claim evidence 加同 Section/Chapter 前后一个 Block；仅 context_insufficient 且 weak/insufficient 可安排一次局部 recheck，扩至前后三个 Block。新证据单独保存在 supplemental_citation_ids，原 Claim 不改写。过大完整块明确报错；高层采样不完整显示 needs_review。
+
+Coverage 逐 Chapter 以最多八个源 Block 的批次检查重要内容是否缺失，并保留 batch source refs。Concept/关系候选语义审查不做全量 N² 或 embedding。问题只能建议 review / Phase 4、5 rerun，不自动改写 Knowledge Model 或创造 Claim。
+
+```text
+verification/
+  current -> generations/<verification-generation>-<publication>/
+  generations/<verification-generation>-<publication>/
+    manifest.json
+    citations.jsonl
+    claim_assessments.jsonl
+    atom_assessments.jsonl
+    idea_assessments.json
+    model_assessments.json
+    principle_assessments.json
+    coverage_review.json
+    review_issues.json
+    quality_report.json
+    quality_report.md
+    provenance.json
+runtime/verification-generations/<uuid>/state.json   # 私人恢复检查点
+```
+
+完整报告才原子切换 current；失败保留旧完整 generation，运行错误另有诊断。normalized、Chapter、Book、classification、workflow/prompt/schema 或 quality rules 变化会令旧核验 stale。成功对象检查点可复用，后续失败不重做全部前置对象。
+
+`book_distiller.evidence.paths.evidence_path(library_book_directory, object_id)` 提供可查询的 generation-bound 证据图，动态取得 excerpt、context、Chapter、PDF page 和原始位置，供未来展示层使用。它不产生 HTML，且历史路径解析能力不表示旧 generation 仍是当前结果。
+
+Quality report 明示公式、分子、分母、阈值、verdict/issue counts 和 rechecks。`pass` 仅表示当前模型通过本地证据规则；内容问题为 `needs_review`；损坏引用/来源/产物或不能完成验证为 `failed`。Fidelity = major 对象权重之和 / major 对象数，权重 supported=1、partial=.5、unsupported/contradicted=0；高 Fidelity 不能覆盖重大幻觉。计数项分母为 null，零样本比例也为 null。
+
+parse completeness 只是已规范化 Block 的结构代理；章节覆盖不是识别准确率；major_omission_chapter_rate 是已审查章节中的遗漏发生比例，不是有 Gold Set 的关键思想遗漏率。长输入采样和语义判断的误报/漏报仍需人工 benchmark。具体决策与阈值见 [ADR-014](docs/adr/ADR-014-evidence-verification.md)、[ADR-015](docs/adr/ADR-015-quality-gate.md)、[规则](rules/quality/standard.json)。测试协议替身与真实 Codex smoke 分开记录。

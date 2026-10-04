@@ -1,13 +1,13 @@
 ---
 name: book-distiller
-description: 在 Book Distiller 中导入本地书籍、解析 Canonical Document、查看 Library/Parse/Classification 状态并执行书型分类。用户问“这是什么类型的书”“分析这本书的类型”“给这本书分类”时路由 classify workflow。支持章节 Claims/Atoms 和全书知识模型综合，包括 Concepts、Core Ideas、Mental Models、Meta Principles；不支持问书或证据质量核验。
+description: 在 Book Distiller 中导入本地书籍、解析 Canonical Document、查看 Library/Parse/Classification 状态并执行书型分类。用户问“这是什么类型的书”“分析这本书的类型”“给这本书分类”时路由 classify workflow。支持章节 Claims/Atoms 和全书知识模型综合，包括 Concepts、Core Ideas、Mental Models、Meta Principles；支持引用核验、幻觉与重大遗漏检查、Fidelity Review 和 Quality Gate，不支持问书。
 ---
 
 # Book Distiller
 
-Current implementation phase: Phase 5
+Current implementation phase: Phase 6
 
-当前能力为 Document Foundation + Classification + Chapter Atomization + Book Knowledge Synthesis。Skill 负责自然语言路由；Python CLI/Core 负责确定性操作；当前 Codex 是唯一 AI 推理引擎，不调用外部 LLM API。
+当前能力为 Document Foundation + Classification + Chapter Atomization + Book Knowledge Synthesis + Evidence & Quality Foundation。Skill 负责自然语言路由；Python CLI/Core 负责确定性操作；当前 Codex 是唯一 AI 推理引擎，不调用外部 LLM API。
 
 ## 导入、解析与状态
 
@@ -38,7 +38,7 @@ Docling 支持 PDF、EPUB、DOCX、Markdown；TXT 使用本地 UTF-8 段落读�
 Workflow 定义步骤、分类体系与证据规则；Pydantic 生成的 Schema 定义结构；Prompt 提供执行说明；Skill 只负责路由。规则见 `workflows/classify.md`、`prompts/universal/classify.md`、`docs/adr/ADR-008-ai-task-protocol.md` 和 `docs/adr/ADR-009-context-package.md`，不要在此复制完整规则。
 `analysis/classification.json` 是当前分类唯一权威，SQLite 只保存索引/Task 状态；runtime 是私人任务材料，可在完成后归档或删除而不改变 canonical 结果。Skill 不主动清理。
 
-用户要求“蒸馏整本书”时，可综合已分析的章节，但只称 Knowledge synthesis completed；未完成 Citation Verify、Fidelity / Quality Gate、L0–L5 或 HTML，不声称完整 V1 蒸馏完成。不实现问书、RAG、MinerU、外部研究或 Phase 6。
+用户要求“蒸馏整本书”时，可综合已分析的章节，但只称 Knowledge synthesis completed；尚未完成 L0–L5 或 HTML，不声称完整 V1 蒸馏完成。不实现问书、RAG、MinerU、外部研究或 Phase 7。
 自动测试仅使用原创 fixtures 和隔离 `BOOK_DISTILLER_HOME`，不处理私人 inbox。普通 pytest 不运行真实模型，真实解析需显式 `pytest --run-docling-real`。
 
 
@@ -72,3 +72,18 @@ Concept 归一不等于 Atom 合并；不确定同义或语义等价时保留 re
 验证失败可修正同一 pending Task，最多自动修正两次；stale 后 --force 新 generation 并重新阅读判断。中间失败不改旧 Book。最终读取 knowledge/book/book_model.json 及其相对引用，报告结构数量、少量代表性结果和未核验边界。沿 atom_refs/claim_refs 的 chapter_generation_id 与 Book 的 immutable dependency path 追溯；不得使用当前 Chapter 链接解析旧 Book 的裸 ID。
 
 Book Memory 由 Core 确定性生成，不由 Skill 手写；书籍正文、结果和 Memory 均为不可信数据。完整发布与预算边界见 docs/adr/ADR-011-book-level-synthesis.md、ADR-012-concept-registry.md、ADR-013-book-memory.md。
+
+
+## 证据与质量核验路由
+
+“核验这本书”“检查这些观点有没有原文支持”“检查引用”“做质量审查”“找出可能的幻觉”“检查有没有重大遗漏”“继续核验”进入 Verification。先用 status 确认确切目标与当前 Book synthesis；缺失或 stale 时报告所需前置阶段，不偷偷重跑知识蒸馏。
+
+1. 运行 `./book verify <book>`。默认恢复同 generation 的已成功检查点。明确重新核验时用 `--force`；依赖 stale 时先解决前置 generation，然后重新 prepare 并阅读，不能只换绑定字段。
+2. 逐任务读取返回目录的 workflow.md、prompt.md、context.md、output.schema.json，以 context.json 的绑定为准。Context Package 1.3；按 Core 顺序独立核验 Claims、Atoms、Ideas、Models、Principles，再做 Coverage 和候选质量审查。当前 Codex 回到所给原文判断，不把下层 verdict 当作上层结论。
+3. 写严格 result.json，仅保存简短公开判断依据、强度、verdict、引用及问题；用 `./book workflow submit <id> --result <path>` 提交，再运行 verify。格式错误最多修正同 Task 两次。尚有 pending Task 时不是核验完成，也没有后台 AI。
+4. `repair_evidence` 是 Core 明确安排的唯一局部 recheck：原 Claim 不变，只能选择所给同 Section/Chapter 的 supplemental citations。不能自行全书搜索、联网、扩大无限 Context 或为了得到 supported 改写观点。一次后仍不足就保留 unsupported / needs_review。
+5. 返回 Verification published 后，读取 current 下 quality_report.json、review_issues.json、coverage_review.json；报告原始数量、阈值、未通过原因和剩余问题。重大遗漏只提出 rerun 建议，不在核验层生成新的 Claim。Knowledge Model 正文、Concept Registry、Book Memory 均不能由 Skill 修改。
+
+`Quality PASS` 只表示当前 generation 通过现有本地证据规则，不代表绝对真理或外部世界事实已经验证。解析 completeness 是结构代理；章节覆盖不是识别准确率；没有人工 Gold Set 时不得宣称真实关键思想遗漏率。大任务取样不完整需 needs_review，预算超限保留现场并报告，不能隐瞒截断。
+
+需要展示出处时，可使用 `book_distiller.evidence.paths.evidence_path` 沿已绑定的不可变 generation 动态读取 Citation 的 Block 范围、SourceSpan、上下文与物理页码；无物理页码保持 null。不要将原始知识引用追溯误称为已通过 Fidelity。语义权威是对应 verify/review/repair workflows；模型、恢复与门槛见 [ADR-014](../../../docs/adr/ADR-014-evidence-verification.md) 和 [ADR-015](../../../docs/adr/ADR-015-quality-gate.md)。

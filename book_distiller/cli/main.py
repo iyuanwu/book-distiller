@@ -1,4 +1,5 @@
-"""Thin Phase 4 CLI for environment checks and local Library operations."""
+"""Thin CLI for local Library, knowledge workflows and evidence verification."""
+import json
 import platform
 import sys
 from pathlib import Path
@@ -16,7 +17,7 @@ from book_distiller.core.models.library import Manifest
 from book_distiller.core.paths import find_project_root, storage_root
 from book_distiller.core.version import get_version
 
-app = typer.Typer(help="Book Distiller — Phase 4 Chapter Knowledge Foundation. Book-wide synthesis is not implemented.", no_args_is_help=True)
+app = typer.Typer(help="Book Distiller — Phase 6 local knowledge synthesis, evidence verification and quality review.", no_args_is_help=True)
 
 
 @app.command()
@@ -107,6 +108,13 @@ def _detail(manifest: Manifest, library: Path) -> None:
                 table.add_row(Text(label),Text(value))
         except BookDistillerError as exc:
             table.add_row('Book synthesis','stale / needs_review: '+str(exc))
+    if (library/'knowledge/book').is_symlink():
+        try:
+            from book_distiller.pipeline.verification_tasks import VerificationTasks
+            from book_distiller.pipeline.canonical import load_canonical
+            document=load_canonical(library,manifest,ai.library.database)
+            for label,value in VerificationTasks(ai).describe(library,document).items():table.add_row(Text(label),Text(value))
+        except BookDistillerError as exc:table.add_row('Verification','failed: '+str(exc))
     Console().print(table)
     if manifest.source.copy_mode == "reference":
         typer.echo("Warning: 如果原文件以后移动或删除，该 Edition 的 Source 会失效。")
@@ -171,6 +179,10 @@ app.add_typer(workflow_app, name="workflow")
 @workflow_app.command("prepare")
 def prepare_workflow(workflow: str, book: str, chapter: str | None = typer.Option(None,"--chapter")) -> None:
     """Create a budgeted Context Package and a pending AI Task."""
+    from book_distiller.core.models.verification import VERIFY_WORKFLOWS
+    if workflow in VERIFY_WORKFLOWS:
+        verify_book(book,False)
+        return
     from book_distiller.core.models.synthesis import BOOK_WORKFLOWS
     if workflow in BOOK_WORKFLOWS:
         if workflow == 'reduce_chapter_atoms':
@@ -261,6 +273,20 @@ def analyze_book(book: str, force: bool = typer.Option(False,"--force")):
     else: _show_task(result)
 
 
+@app.command("verify")
+def verify_book(book: str, force: bool = typer.Option(False,"--force")):
+    """Prepare/resume local evidence verification; Codex performs the judgments."""
+    from book_distiller.pipeline.verification_tasks import VerificationTasks
+    service=VerificationTasks(_chapter_service().ai)
+    try: result=service.prepare(book,force)
+    except BookDistillerError as exc: _error(exc)
+    if isinstance(result,Path): typer.echo(f"Verification published: {result}")
+    else:
+        _show_task(result)
+        state=json.loads((service.root(result.directory.parents[2],result.context.scope['generation_id'])/'state.json').read_text())
+        typer.echo(f"Verification generation: {state['generation_id']}")
+        typer.echo(f"Progress: {state['cursor']} / {len(state['plan'])} tasks completed")
+
+
 if __name__ == "__main__":
     app()
-

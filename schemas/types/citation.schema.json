@@ -1,0 +1,267 @@
+{
+  "$defs": {
+    "BoundingBox": {
+      "additionalProperties": false,
+      "properties": {
+        "left": {
+          "title": "Left",
+          "type": "number"
+        },
+        "top": {
+          "title": "Top",
+          "type": "number"
+        },
+        "right": {
+          "title": "Right",
+          "type": "number"
+        },
+        "bottom": {
+          "title": "Bottom",
+          "type": "number"
+        },
+        "coordinate_origin": {
+          "enum": [
+            "top-left",
+            "bottom-left"
+          ],
+          "title": "Coordinate Origin",
+          "type": "string"
+        }
+      },
+      "required": [
+        "left",
+        "top",
+        "right",
+        "bottom",
+        "coordinate_origin"
+      ],
+      "title": "BoundingBox",
+      "type": "object"
+    },
+    "SourceSpan": {
+      "additionalProperties": false,
+      "description": "Physical PDF pages; char offsets are half-open in normalized block text.",
+      "properties": {
+        "source_page_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Page Index"
+        },
+        "source_page_number": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Page Number"
+        },
+        "printed_page_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Printed Page Label"
+        },
+        "block_id": {
+          "pattern": "^blk_\\d{6,}$",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Char Start"
+        },
+        "char_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Char End"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundingBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "parser": {
+          "title": "Parser",
+          "type": "string"
+        },
+        "parser_locator": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parser Locator"
+        }
+      },
+      "required": [
+        "block_id",
+        "parser"
+      ],
+      "title": "SourceSpan",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "citation_id": {
+      "pattern": "^cit_[0-9a-f]{32}$",
+      "title": "Citation Id",
+      "type": "string"
+    },
+    "book_id": {
+      "format": "uuid",
+      "title": "Book Id",
+      "type": "string"
+    },
+    "edition_id": {
+      "format": "uuid",
+      "title": "Edition Id",
+      "type": "string"
+    },
+    "normalized_generation_id": {
+      "format": "uuid",
+      "title": "Normalized Generation Id",
+      "type": "string"
+    },
+    "block_id": {
+      "title": "Block Id",
+      "type": "string"
+    },
+    "char_start": {
+      "minimum": 0,
+      "title": "Char Start",
+      "type": "integer"
+    },
+    "char_end": {
+      "minimum": 0,
+      "title": "Char End",
+      "type": "integer"
+    },
+    "page_index": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Page Index"
+    },
+    "page_number": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Page Number"
+    },
+    "parser": {
+      "title": "Parser",
+      "type": "string"
+    },
+    "parser_locator": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parser Locator"
+    },
+    "source_spans": {
+      "items": {
+        "$ref": "#/$defs/SourceSpan"
+      },
+      "minItems": 1,
+      "title": "Source Spans",
+      "type": "array"
+    },
+    "context_block_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Context Block Ids",
+      "type": "array"
+    },
+    "text_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Text Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "citation_id",
+    "book_id",
+    "edition_id",
+    "normalized_generation_id",
+    "block_id",
+    "char_start",
+    "char_end",
+    "parser",
+    "source_spans",
+    "text_hash"
+  ],
+  "title": "Citation",
+  "type": "object"
+}

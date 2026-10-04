@@ -1,0 +1,314 @@
+{
+  "$defs": {
+    "EngineMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "const": "codex",
+          "default": "codex",
+          "title": "Engine",
+          "type": "string"
+        }
+      },
+      "title": "EngineMetadata",
+      "type": "object"
+    },
+    "ObjectRef": {
+      "additionalProperties": false,
+      "properties": {
+        "object_type": {
+          "enum": [
+            "atomic_claim",
+            "knowledge_atom",
+            "core_idea",
+            "mental_model",
+            "meta_principle"
+          ],
+          "title": "Object Type",
+          "type": "string"
+        },
+        "object_id": {
+          "title": "Object Id",
+          "type": "string"
+        },
+        "book_id": {
+          "format": "uuid",
+          "title": "Book Id",
+          "type": "string"
+        },
+        "edition_id": {
+          "format": "uuid",
+          "title": "Edition Id",
+          "type": "string"
+        },
+        "chapter_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Chapter Id"
+        },
+        "chapter_generation_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Chapter Generation Id"
+        },
+        "book_generation_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Book Generation Id"
+        }
+      },
+      "required": [
+        "object_type",
+        "object_id",
+        "book_id",
+        "edition_id"
+      ],
+      "title": "ObjectRef",
+      "type": "object"
+    },
+    "ReviewIssueDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "issue_type": {
+          "enum": [
+            "UNSUPPORTED_CLAIM",
+            "CONTRADICTED_CLAIM",
+            "OVERCLAIM",
+            "WEAK_EVIDENCE",
+            "BROKEN_CITATION",
+            "MAJOR_OMISSION",
+            "DUPLICATE_KNOWLEDGE",
+            "CONCEPT_DISTORTION",
+            "SYNTHESIS_OVERREACH",
+            "LOW_TRACEABILITY",
+            "LOW_CHAPTER_COVERAGE"
+          ],
+          "title": "Issue Type",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "critical",
+            "major",
+            "minor",
+            "warning"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "object_refs": {
+          "items": {
+            "$ref": "#/$defs/ObjectRef"
+          },
+          "maxItems": 24,
+          "title": "Object Refs",
+          "type": "array"
+        },
+        "source_refs": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 24,
+          "title": "Source Refs",
+          "type": "array"
+        },
+        "chapter_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Chapter Id"
+        },
+        "summary": {
+          "maxLength": 1200,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Summary",
+          "type": "string"
+        },
+        "suggested_action": {
+          "enum": [
+            "rerun_claim_extraction",
+            "rerun_chapter_atoms",
+            "rerun_book_synthesis",
+            "inspect_source",
+            "accept_as_low_confidence"
+          ],
+          "title": "Suggested Action",
+          "type": "string"
+        },
+        "reviewer_confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Reviewer Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "issue_type",
+        "severity",
+        "summary",
+        "suggested_action",
+        "reviewer_confidence"
+      ],
+      "title": "ReviewIssueDraft",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "format": "uuid",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "book_id": {
+      "format": "uuid",
+      "title": "Book Id",
+      "type": "string"
+    },
+    "edition_id": {
+      "format": "uuid",
+      "title": "Edition Id",
+      "type": "string"
+    },
+    "verification_generation_id": {
+      "format": "uuid",
+      "title": "Verification Generation Id",
+      "type": "string"
+    },
+    "dependency_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Dependency Hash",
+      "type": "string"
+    },
+    "input_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Input Hash",
+      "type": "string"
+    },
+    "context_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Context Hash",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "normalized_schema_version": {
+      "title": "Normalized Schema Version",
+      "type": "string"
+    },
+    "normalized_document_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Normalized Document Hash",
+      "type": "string"
+    },
+    "classification_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Classification Hash",
+      "type": "string"
+    },
+    "workflow_version": {
+      "title": "Workflow Version",
+      "type": "string"
+    },
+    "prompt_version": {
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "context_package_version": {
+      "const": "1.3",
+      "default": "1.3",
+      "title": "Context Package Version",
+      "type": "string"
+    },
+    "source_parse_quality": {
+      "enum": [
+        "pass",
+        "review_recommended"
+      ],
+      "title": "Source Parse Quality",
+      "type": "string"
+    },
+    "generated_by": {
+      "$ref": "#/$defs/EngineMetadata"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/ReviewIssueDraft"
+      },
+      "maxItems": 24,
+      "title": "Issues",
+      "type": "array"
+    },
+    "review_summary": {
+      "maxLength": 1200,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Review Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "book_id",
+    "edition_id",
+    "verification_generation_id",
+    "dependency_hash",
+    "input_hash",
+    "context_hash",
+    "source_sha256",
+    "normalized_schema_version",
+    "normalized_document_hash",
+    "classification_hash",
+    "workflow_version",
+    "prompt_version",
+    "source_parse_quality",
+    "generated_by",
+    "review_summary"
+  ],
+  "title": "QualityReviewResult",
+  "type": "object"
+}

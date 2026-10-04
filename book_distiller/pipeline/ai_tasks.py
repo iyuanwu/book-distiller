@@ -16,6 +16,7 @@ from book_distiller.pipeline.workflows import load_workflow
 from book_distiller.storage.filesystem import hash_source
 from book_distiller.pipeline.files import write_json, write_bytes
 from book_distiller.core.models.synthesis import BOOK_WORKFLOWS
+from book_distiller.core.models.verification import VERIFY_WORKFLOWS
 
 
 @dataclass(frozen=True)
@@ -67,12 +68,15 @@ class AITaskService:
         except Exception as exc:
             raise StorageError(f"Prepare failed: {exc}") from exc
 
-    def _prepare_locked(self, name, selector, *, budget=None, selection=None, knowledge=None, synthesis=None):
-        workflow = load_workflow(self.project, name, knowledge['types'] if knowledge else synthesis['types'] if synthesis else None)
+    def _prepare_locked(self, name, selector, *, budget=None, selection=None, knowledge=None, synthesis=None, verification=None):
+        workflow = load_workflow(self.project, name, knowledge['types'] if knowledge else synthesis['types'] if synthesis else verification['types'] if verification else None)
         manifest, directory = self._resolve(selector)
         document = load_canonical(directory, manifest, self.library.database)
         task = TaskRecord(edition_id=manifest.edition.edition_id, task_type=workflow.task_type)
-        if synthesis:
+        if verification:
+            from book_distiller.pipeline.verification_context import build_verification_context
+            context=build_verification_context(document,task.task_id,workflow,**verification['context'])
+        elif synthesis:
             from book_distiller.pipeline.synthesis_context import build_synthesis_context
             context=build_synthesis_context(document,task.task_id,workflow,**synthesis['context'])
         elif knowledge:
@@ -141,6 +145,9 @@ class AITaskService:
             # Rebuild the bounded selection to detect internally consistent but altered runtime data.
             if task['task_type']=='classify_book':
                 rebuilt = build_context_package(document, request.task_id, workflow, context.selection.spec, context.budget.limits)
+            elif task['task_type'] in VERIFY_WORKFLOWS:
+                from book_distiller.pipeline.verification_tasks import VerificationTasks
+                rebuilt=VerificationTasks(self).rebuild(directory,document,context,workflow)
             elif task['task_type'] in BOOK_WORKFLOWS:
                 from book_distiller.pipeline.book_tasks import BookTasks
                 rebuilt=BookTasks(self).rebuild(directory,document,context,workflow)
@@ -159,7 +166,7 @@ class AITaskService:
             with self.library.files.locked():
                 self.library._initialize()
                 task = self.library.database.lookup_task(task_id)
-                if task is None or task["task_type"] not in {"classify_book","extract_claims","build_chapter_atoms"} | BOOK_WORKFLOWS:
+                if task is None or task["task_type"] not in {"classify_book","extract_claims","build_chapter_atoms"} | BOOK_WORKFLOWS | VERIFY_WORKFLOWS:
                     raise ProtocolError("TASK_NOT_FOUND", "No indexed AI task with that ID.")
                 manifest, directory = self._resolve(task["book_id"])
                 task_dir = safe_child(directory, f"runtime/tasks/{task_id}")
@@ -187,7 +194,7 @@ class AITaskService:
                     accepted = json.loads((task_dir / "apply.json").read_text(encoding="utf-8"))
                     if accepted["result_hash"] != json_hash(result.model_dump(mode="json", exclude={"created_at"})):
                         raise ProtocolError("TASK_ALREADY_COMPLETED", "A completed task cannot accept a different result.")
-                    if task['task_type'] in BOOK_WORKFLOWS:
+                    if task['task_type'] in BOOK_WORKFLOWS | VERIFY_WORKFLOWS:
                         return task_dir/'accepted.json'
                     if task['task_type']!='classify_book':
                         from book_distiller.pipeline.chapter_tasks import ChapterTasks
@@ -224,7 +231,7 @@ class AITaskService:
                     raise
                 write_json(task_dir / "validation.json", {"status":"applied", "context_hash":request.context_hash,
                     "validated_at":datetime.now(timezone.utc).isoformat()})
-                if task['task_type'] in BOOK_WORKFLOWS:
+                if task['task_type'] in BOOK_WORKFLOWS | VERIFY_WORKFLOWS:
                     return canonical
                 if task['task_type']!='classify_book':
                     from book_distiller.pipeline.chapter_tasks import ChapterTasks
