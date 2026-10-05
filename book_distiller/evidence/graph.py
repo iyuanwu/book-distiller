@@ -12,6 +12,8 @@ from book_distiller.storage.filesystem import hash_source
 
 def snapshot(directory,book_path,model,destination,source):
     entries={};order=[]
+    from book_distiller.human.resolver import EffectiveKnowledgeResolver, ref as human_ref
+    resolver=EffectiveKnowledgeResolver(directory)
     def check_binding(value,chapter,generation):
         if (str(value.book_id)!=model['book_id'] or str(value.edition_id)!=model['edition_id'] or
             str(value.generation_id)!=generation or value.chapter_id!=chapter or
@@ -22,6 +24,7 @@ def snapshot(directory,book_path,model,destination,source):
         ref=ObjectRef(object_type=kind,object_id=identity,book_id=model['book_id'],edition_id=model['edition_id'],chapter_id=chapter,
             chapter_generation_id=gid,book_generation_id=model['generation_id'] if chapter is None else None).model_dump(mode='json')
         if identity in entries:raise ProtocolError('BROKEN_CITATION','Duplicate knowledge identity')
+        value=resolver.effective(human_ref(kind,gid if chapter else model['generation_id'],identity,chapter),value)['value']
         name='object-'+json_hash(ref)+'.json';data={'ref':ref,'value':value}
         write_json(destination/name,data)
         entries[identity]={'ref':ref,'file':name,'hash':hash_source(destination/name)[0],'lower':[],'source_blocks':[]}

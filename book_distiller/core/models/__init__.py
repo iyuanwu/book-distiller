@@ -33,10 +33,23 @@ class EditionIdentity(CommonModel):
 
 
 class RunMetadata(CommonModel):
-    """Run identity and creation metadata, without execution semantics."""
+    """User-level execution, retaining the original metadata contract."""
     run_id: UUID = Field(default_factory=uuid4)
     book_id: UUID
     edition_id: UUID
+    operation: Literal['initial_pipeline','rerun','verification','render'] = 'initial_pipeline'
+    requested_scope: dict = Field(default_factory=dict)
+    resolved_plan: dict = Field(default_factory=dict)
+    pipeline_graph_version: str = 'pipeline-graph-v1'
+    source_sha256: str | None = None
+    normalized_generation_id: str | None = None
+    started_at: AwareDatetime | None = None
+    completed_at: AwareDatetime | None = None
+    parent_run_id: UUID | None = None
+    resume_of_run_id: UUID | None = None
+    failure_summary: str | None = None
+    cursor: int = 0
+    checkpoints: dict = Field(default_factory=dict)
     mode: DistillationMode = DistillationMode.STANDARD
     status: BookStatus = BookStatus.PENDING
     prompt_version: str | None = None

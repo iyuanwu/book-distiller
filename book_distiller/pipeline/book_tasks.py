@@ -1,3 +1,4 @@
+from book_distiller.pipeline.dependencies import compatible_dependencies
 """Checkpointed Book synthesis on the shared file protocol; never calls a model."""
 import json
 from datetime import datetime,timezone
@@ -42,12 +43,17 @@ class BookTasks:
         classification,chash=self.chapters.classification(directory,document)
         deps={'normalized_document_hash':document.fingerprint.document_hash,'classification_hash':chash,'chapters':{},
               'resources':self.resources(classification)}
+        from book_distiller.human.resolver import EffectiveKnowledgeResolver
+        human=EffectiveKnowledgeResolver(directory)
+        deps['human_atoms_hash']=human.semantic_hash({'knowledge_atom','concept','core_idea','mental_model'})
         paths={}
         for chapter in document.book.chapters:
             path=chapter_storage.current(directory,chapter.chapter_id)
             if path is None: continue
             info=json.loads((path/'chapter.json').read_text())
             meta=info['generation']
+            if info.get('human_claims_hash',json_hash([]))!=human.semantic_hash({'atomic_claim'},chapter.chapter_id):
+                raise ProtocolError('STALE_CONTEXT','Human Claim edit requires Atom rerun')
             if meta['normalized_document_hash']!=document.fingerprint.document_hash or meta['classification_hash']!=chash:
                 raise ProtocolError('STALE_CONTEXT',f'{chapter.chapter_id} must be atomized for the current source/classification')
             if self.library.database.task_status(meta['atom_task'])!='completed':
@@ -78,11 +84,15 @@ class BookTasks:
         atom_chapters={};atom_claims={}
         with destination.open('w',encoding='utf-8') as stream:
             for chapter,path in paths.items():
+                from book_distiller.human.resolver import EffectiveKnowledgeResolver,ref
+                human=EffectiveKnowledgeResolver(path.parents[2])
                 terms={}
                 for claim in read_items(path/'claims.jsonl'):
                     c=AtomicClaim.model_validate(claim)
                     terms[c.claim_id]=c.concept_terms
                 for raw in json.loads((path/'atoms.json').read_text())['atoms']:
+                    from book_distiller.human.resolver import EffectiveKnowledgeResolver,ref
+                    raw=human.effective(ref('knowledge_atom',raw['generation_id'],raw['atom_id'],chapter),raw)['value']
                     atom=KnowledgeAtom.model_validate(raw)
                     if atom.chapter_id!=chapter or atom.atom_id in atom_chapters or not set(atom.claim_ids)<=terms.keys():
                         raise ProtocolError('INVALID_SOURCE_REFERENCE','Chapter atom identity or claims invalid')
@@ -107,6 +117,11 @@ class BookTasks:
                     stream.write(canonical_json(item)+'\n')
         previous=storage.current(directory) if mode=='book' else None
         registry=json.loads((previous/'concepts.json').read_text())['concepts'] if previous else []
+        if previous:
+            from book_distiller.human.resolver import EffectiveKnowledgeResolver, ref
+            previous_gid=json.loads((previous/'book_model.json').read_text())['generation_id']
+            resolver=EffectiveKnowledgeResolver(directory)
+            registry=[resolver.effective(ref('concept',previous_gid,c['concept_id']),c)['value'] for c in registry]
         state={'generation_id':gid,'mode':mode,'chapter_id':chapter,'dependencies':deps,'dependency_hash':json_hash(deps),
             'classification':{'primary_type':classification.primary_type.value,'secondary_types':[v.value for v in classification.secondary_types],
                               'tags':classification.tags},'source_hash':hash_source(root/'items.jsonl')[0],
@@ -123,7 +138,7 @@ class BookTasks:
             _,deps,_=self.dependencies(directory,document)
         else:
             _,deps=self.chapter_dependencies(directory,document,state['chapter_id'])
-        if deps!=state['dependencies']:
+        if not compatible_dependencies(deps,state['dependencies']):
             raise ProtocolError('STALE_CONTEXT','Chapter generations, source, classification or workflow changed; start a fresh generation')
         active=json.loads(self.active_path(directory,state['mode'],state['chapter_id']).read_text())
         if active['generation_id']!=state['generation_id']: raise ProtocolError('STALE_CONTEXT','Generation superseded')
@@ -188,15 +203,21 @@ class BookTasks:
         elif context.task_type=='normalize_concepts':
             state['concepts']=[c.model_dump(mode='json') for c in result.concepts]
             for c in state['concepts']: c['atom_ids']=expand(c['atom_ids'],available,state['lineage'])
+            from book_distiller.human.locks import protect_book_state
+            protect_book_state(self.ai,directory,state,'concept')
             state['step']='build_core_ideas'
         elif context.task_type=='build_core_ideas':
             state['core_ideas']=[i.model_dump(mode='json') for i in result.core_ideas]
             state['decisions']=[d.model_dump(mode='json') for d in result.decisions]
             for idea in state['core_ideas']: idea['atom_ids']=expand(idea['atom_ids'],available,state['lineage'])
             for d in state['decisions']: d['source_atom_ids']=expand(d['source_atom_ids'],available,state['lineage'])
+            from book_distiller.human.locks import protect_book_state
+            protect_book_state(self.ai,directory,state,'core_idea')
             state['step']='build_mental_models'
         elif context.task_type=='build_mental_models':
             state['mental_models']=[m.model_dump(mode='json') for m in result.mental_models]
+            from book_distiller.human.locks import protect_book_state
+            protect_book_state(self.ai,directory,state,'mental_model')
             ideas={i['core_idea_id']:i for i in state['core_ideas']}
             state['mental_models_context']=[]
             for m in state['mental_models']:
@@ -249,6 +270,10 @@ class BookTasks:
                 self.save(directory,state)
                 return self.advance(directory,selector,document,state)
         if state['step']=='publish':
+            if state['mode']=='book':
+                published=storage.current(directory)
+                if published and json.loads((published/'book_model.json').read_text())['generation_id']==state['generation_id']:
+                    self.reconcile_human(directory,state);state['completed']=True;self.save(directory,state);return directory/'knowledge/book'
             pointer=directory/'knowledge/book' if state['mode']=='book' else directory/'knowledge/chapters'/state['chapter_id']
             previous=os.readlink(pointer) if pointer.is_symlink() else None
             path=self.publish(directory,document,state) if state['mode']=='book' else self.publish_chapter(directory,document,state)
@@ -276,8 +301,16 @@ class BookTasks:
         except BookDistillerError: raise
         except Exception as exc: raise StorageError(f'Book synthesis failed: {exc}') from exc
 
+    def reconcile_human(self,directory,state):
+        from book_distiller.human.locks import rebase
+        from book_distiller.human.resolver import ref
+        for old in state.get('protected_refs',[]):
+            rebase(directory,old,ref(old['object_type'],state['generation_id'],old['object_id']))
+
     def publish(self,directory,document,state):
         self.verify(directory,document,state)
+        from book_distiller.human.locks import protect_book_state
+        protect_book_state(self.ai,directory,state)
         assigned={a for i in state['core_ideas'] for a in i['atom_ids']}
         metrics={'concept_count':len(state['concepts']),'core_idea_count':len(state['core_ideas']),
             'mental_model_count':len(state['mental_models']),'meta_principle_count':len(state['meta_principles']),
@@ -307,7 +340,18 @@ class BookTasks:
                 'created_at':datetime.now(timezone.utc).isoformat(),'metrics':metrics,'warnings':warnings,'source_parse_quality':document.quality.status,
                 'artifact_hashes':{p.name:hash_source(p)[0] for p in stage.iterdir()},'book_memory_hash':memory['book_memory_hash']})
             destination=parent/f"{state['generation_id']}-{uuid4()}";stage.rename(destination)
+            protected_before=__import__('book_distiller.human.resolver',fromlist=['EffectiveKnowledgeResolver']).EffectiveKnowledgeResolver(directory).protected()
+            state['protected_refs']=[obj['target_ref'] for obj in protected_before if obj['target_ref']['chapter_id'] is None and obj['target_ref']['object_type']!='classification']
+            self.save(directory,state)
             storage.publish(directory,destination)
+            from book_distiller.human.locks import rebase
+            from book_distiller.human.resolver import ref
+            for obj in protected_before:
+                old=obj['target_ref']
+                if old['chapter_id'] is None and old['object_type']!='classification':
+                    rebase(directory,old,ref(old['object_type'],state['generation_id'],old['object_id']))
+            from book_distiller.pipeline.staleness import complete
+            complete(directory,'book')
             return directory/'knowledge/book'
         except BaseException:
             if stage.exists(): shutil.rmtree(stage)

@@ -1,3 +1,4 @@
+from book_distiller.pipeline.dependencies import compatible_dependencies
 """Resumable local verification planner on the shared AI Task protocol."""
 import json,os,shutil
 from pathlib import Path
@@ -28,7 +29,7 @@ class VerificationTasks:
         if (model['book_id'],model['edition_id'])!=(str(document.book.book_id),str(document.book.edition_id)):
             raise ProtocolError('BROKEN_CITATION','Book model identity mismatch')
         classification,deps,_=self.books.dependencies(directory,document)
-        if deps!=model['dependencies']:raise ProtocolError('STALE_CONTEXT','Book synthesis is stale; rerun it before verification')
+        if not compatible_dependencies(deps,model['dependencies']):raise ProtocolError('STALE_CONTEXT','Book synthesis is stale; rerun it before verification')
         types=[classification.primary_type.value,*[t.value for t in classification.secondary_types]]
         resources={n:json_hash({'workflow':hash_source(w.workflow_path)[0],'prompt':w.prompt_hash(),'schema':w.output_schema()}) for n in sorted(VERIFY_WORKFLOWS) for w in [load_workflow(self.ai.project,n,types)]}
         manifest,_=self.ai._resolve(str(document.book.book_id))
@@ -36,12 +37,12 @@ class VerificationTasks:
         missing_reference=allow_missing_reference and manifest.source.copy_mode=='reference' and not source.exists()
         if not missing_reference and (not source.exists() or hash_source(source)[0]!=document.book.source_sha256):raise ProtocolError('SOURCE_INTEGRITY_FAILURE','Original source missing or changed')
         return classification,{'book_generation_id':model['generation_id'],'book_manifest_hash':hash_source(book/'book_model.json')[0],
-            'book_path':str(book.relative_to(directory)),'knowledge_dependencies':deps,'rules_hash':json_hash(self.rules()),'resources':resources},book,model
+            'book_path':str(book.relative_to(directory)),'knowledge_dependencies':deps,'rules_hash':json_hash(self.rules()),'resources':resources,'human_semantic_hash':__import__('book_distiller.human.resolver',fromlist=['EffectiveKnowledgeResolver']).EffectiveKnowledgeResolver(directory).semantic_hash()},book,model
     def root(self,directory,gid):return safe_child(directory,f'runtime/verification-generations/{UUID(str(gid))}')
     def save(self,directory,state):write_json(self.root(directory,state['generation_id'])/'state.json',state)
     def verify(self,directory,document,state):
         _,deps,_,_=self.dependencies(directory,document)
-        if deps!=state['dependencies']:raise ProtocolError('STALE_CONTEXT','Verification dependencies changed')
+        if not compatible_dependencies(deps,state['dependencies']):raise ProtocolError('STALE_CONTEXT','Verification dependencies changed')
         if json.loads(safe_child(directory,'runtime/verification-active.json').read_text())['generation_id']!=state['generation_id']:
             raise ProtocolError('STALE_CONTEXT','Verification generation superseded')
     def new(self,directory,document,classification,deps,book,model):
@@ -211,6 +212,8 @@ class VerificationTasks:
             destination=parent/f"{state['generation_id']}-{uuid4()}";stage.rename(destination);publication=storage.publish(directory,destination)
             try:state['completed']=True;self.save(directory,state)
             except BaseException:publication.restore();raise
+            from book_distiller.pipeline.staleness import complete
+            complete(directory,'verification')
             return directory/'verification/current'
         except BaseException:
             if stage.exists():shutil.rmtree(stage)
@@ -234,7 +237,11 @@ class VerificationTasks:
                     pending=self.consume(directory,document,state)
                     if pending:return pending
                 safe_child(directory,'runtime/verification-failure.json').unlink(missing_ok=True)
-                if state['cursor']==len(state['plan']):return self.publish(directory,document,state)
+                if state['cursor']==len(state['plan']):
+                    published=storage.current(directory)
+                    if published and json.loads((published/'manifest.json').read_text())['generation_id']==state['generation_id']:
+                        state['completed']=True;self.save(directory,state);return directory/'verification/current'
+                    return self.publish(directory,document,state)
                 return self.prepare_task(directory,selector,document,state,state['plan'][state['cursor']])
         except Exception as exc:
             if directory:
@@ -260,7 +267,7 @@ class VerificationTasks:
             if path is None:return {'Verification':'unavailable'}
             report=json.loads((path/'quality_report.json').read_text());meta=json.loads((path/'manifest.json').read_text())
             _,deps,_,_=self.dependencies(directory,document)
-            if meta['dependencies']!=deps:return {'Verification':'stale','Quality gate':'stale'}
+            if not compatible_dependencies(meta['dependencies'],deps):return {'Verification':'stale','Quality gate':'stale'}
             trace=report['metrics']['citation_traceability_rate']['value']
             return {'Verification':'completed' if report['status']=='pass' else report['status'],'Quality gate':report['status'],
                 'Citation trace':f'{trace:.1%}' if trace is not None else 'N/A','Major unsupported':str(report['metrics']['unsupported_major_objects']['value']),

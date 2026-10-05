@@ -5,7 +5,7 @@ description: 在 Book Distiller 中导入本地书籍、解析 Canonical Documen
 
 # Book Distiller
 
-Current implementation phase: Phase 7
+Current implementation phase: Phase 8
 
 当前能力为 Document Foundation + Classification + Chapter Atomization + Book Knowledge Synthesis + Evidence & Quality Foundation + Progressive Static Reader。Skill 负责自然语言路由；Python CLI/Core 负责确定性操作；当前 Codex 是唯一 AI 推理引擎，不调用外部 LLM API。
 
@@ -38,7 +38,7 @@ Docling 支持 PDF、EPUB、DOCX、Markdown；TXT 使用本地 UTF-8 段落读�
 Workflow 定义步骤、分类体系与证据规则；Pydantic 生成的 Schema 定义结构；Prompt 提供执行说明；Skill 只负责路由。规则见 `workflows/classify.md`、`prompts/universal/classify.md`、`docs/adr/ADR-008-ai-task-protocol.md` 和 `docs/adr/ADR-009-context-package.md`，不要在此复制完整规则。
 `analysis/classification.json` 是当前分类唯一权威，SQLite 只保存索引/Task 状态；runtime 是私人任务材料，可在完成后归档或删除而不改变 canonical 结果。Skill 不主动清理。
 
-用户要求“蒸馏整本书”时，按已有路由完成所授权书籍的 Ingest、Parse、Classification、Claims、Atoms、Book synthesis、Verification 和 Render；仅在全部完成后称“这本书的可阅读蒸馏结果已经生成”。不声称整个 V1 已全部完成；尚无 Human Override、Book Ask、RAG、Bundle、Backup、Benchmark、MinerU 或 Phase 8。
+用户要求“蒸馏整本书”时，按已有路由完成所授权书籍的 Ingest、Parse、Classification、Claims、Atoms、Book synthesis、Verification 和 Render；仅在全部完成后称“这本书的可阅读蒸馏结果已经生成”。不声称整个 V1 已全部完成；尚无 Book Ask、RAG、Bundle、Backup、Benchmark、MinerU 或 Phase 9。
 自动测试仅使用原创 fixtures 和隔离 `BOOK_DISTILLER_HOME`，不处理私人 inbox。普通 pytest 不运行真实模型，真实解析需显式 `pytest --run-docling-real`。
 
 
@@ -98,3 +98,16 @@ Book Memory 由 Core 确定性生成，不由 Skill 手写；书籍正文、结�
 needs_review 允许生成并明确警告；failed、stale、无核验时报告所需前置阶段，不用旧导出冒充当前，不为显示而改写知识或核验结果。Reader 为确定性 derived view，不调用 Codex 重新总结；其删除/重建不影响 canonical。原始 confidence 与核验 verdict 分开。no-copy 原件缺失时仅 Open Original unavailable，已有 Canonical 证据仍可展示。
 
 HTML 用于交互，Markdown 用于便携阅读，JSON 用于结构化读取。导出不可当作新的事实源，不提交私人 reader/source/evidence 数据到 Git。实现边界见 [ADR-016](../../../docs/adr/ADR-016-progressive-reading.md)、[ADR-017](../../../docs/adr/ADR-017-static-reader.md)。
+
+
+## Resume / Rerun / Human 路由（Phase 8）
+
+“继续上次任务”“恢复中断”先运行 `./book resume <book>`，或用户指定的 `--run <uuid>`。处理过的 Task 不重新请求 Codex。返回 Task 后继续读取 workflow.md、prompt.md、context.md、output.schema.json，真实判断、submit、resume，直到完成或明确冲突。没有 resumable Run 时说明现状，不把 resume 偷换为全量 rerun；旧低层 stage Task 仍用对应已有命令继续。
+
+“重新提取第 X 章”“只重做 Atoms”“重新综合/核验/生成阅读版”映射到 Core `./book rerun <book> --from <stage> [--chapter ch_XXXX] [--through <stage>]`。阶段名 parse/classification/claims/atoms/book/verification/render。用户要预览时加 `--dry-run`。已明确授权的重跑直接执行，不重复确认。依赖图、复用/失效范围由 Core 决定，Skill 不复制规则。缺失锁依赖停止并报告 LOCK_DEPENDENCY_CONFLICT；只有用户明确 unlock 才解锁，不做相似文本重绑定。
+
+“修改观点”“人工确认”“锁定/解锁”先 `human list/show` 获取当前 target_ref 和 base_object_hash，将用户要求的 action/patch 写入临时 JSON，用 `./book human apply <book> --input <path>` 提交。verify/lock/unlock 的 patch 为空。不得直接编辑 canonical 或 journal，也不得替用户伪造确认。STALE_HUMAN_EDIT 后重新读取对象，不自动换 hash 覆盖新值。语义 edit 后用对应 scoped rerun 刷新派生知识；元数据操作只需 rerender。
+
+“添加笔记”用 `human note`，target_ref 必须 generation-bound；笔记属于 User，不是 Source。“设置全局/书型/本书规则”用 `human rule`，指定 applicable_workflows，type 需 book_type。规则只进入新 Task Human Guidance，不修改 prompts、不自动让 Library stale。系统/Schema/证据/锁不变量高于 Book、Type、Global 规则。
+
+Reader 显示 Human modified、Human verified、Locked 和 User Note。Human verified 与 AI Verification/Quality Gate 独立。语义 edit 后不得以旧 PASS 冒充当前；managed output 需重新打开/刷新读取本地 stale 投影，复制导出只代表生成时 SNAPSHOT。参见 [ADR-018](../../../docs/adr/ADR-018-run-resume-rerun.md)、[ADR-019](../../../docs/adr/ADR-019-human-effective-knowledge.md)、[ADR-020](../../../docs/adr/ADR-020-reader-human-state.md)。

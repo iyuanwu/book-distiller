@@ -5,11 +5,12 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
 <title>{{ book.title }} · Book Distiller</title>
 <link rel="stylesheet" href="assets/reader.css">
+<script src="../reader-status.js" defer></script>
 <script src="assets/book-data.js" defer></script><script src="assets/app.js" defer></script>
 </head>
 <body>
 <header><button id="nav-toggle" aria-label="展开目录" aria-expanded="false">☰</button><a class="brand" href="#l0">BOOK DISTILLER <span>LOCAL READER</span></a><button id="evidence-toggle" aria-label="展开证据" aria-expanded="false">证据与质量</button></header>
-<div id="gate" class="gate {{ quality.status }}"><strong>QUALITY GATE · {{ quality.status | upper }}</strong> <span>{% if quality.status == 'needs_review' %}This knowledge model requires review. 此知识模型需要复核。{% else %}通过本地原书证据规则；不代表外部事实已验证。{% endif %}</span> <a href="#quality">查看质量报告 →</a></div>
+<div id="gate" class="gate {{ quality.status }}"><strong>QUALITY GATE · {{ quality.status | upper }} · SNAPSHOT</strong> <span>{% if quality.status == 'needs_review' %}This knowledge model requires review. 此知识模型需要复核。{% else %}通过本地原书证据规则；不代表外部事实已验证。{% endif %}</span> <span>生成时核验快照；重新打开可读取本地状态提示。</span> <a href="#quality">查看质量报告 →</a></div>
 <div class="workspace">
 <aside id="left"><div class="book-label">阅读目录</div><h1>{{ book.title }}</h1><form id="search-form" role="search"><label for="search">搜索知识模型</label><div class="searchbox"><input id="search" type="search" placeholder="概念、观点、Claim…" autocomplete="off"><button type="submit" aria-label="搜索">↵</button></div></form><nav id="navigation" aria-label="阅读导航"></nav><div class="sidebar-note">本地 · 离线 · 可追溯<br>Canonical Knowledge → Reader</div></aside>
 <main id="main" tabindex="-1" aria-live="polite"></main>

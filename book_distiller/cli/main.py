@@ -17,7 +17,7 @@ from book_distiller.core.models.library import Manifest
 from book_distiller.core.paths import find_project_root, storage_root
 from book_distiller.core.version import get_version
 
-app = typer.Typer(help="Book Distiller — Phase 7 verified knowledge and progressive static reading.", no_args_is_help=True)
+app = typer.Typer(help="Book Distiller — Phase 8 resume, scoped rerun and human overrides.", no_args_is_help=True)
 
 
 @app.command()
@@ -118,6 +118,8 @@ def _detail(manifest: Manifest, library: Path) -> None:
     from book_distiller.renderers.service import RenderService
     for label, value in RenderService(storage_root(find_project_root()), find_project_root()).describe(str(manifest.book.book_id), library).items():
         table.add_row(Text(label), Text(value))
+    from book_distiller.pipeline.staleness import read as stale_state
+    for key,reason in stale_state(library).items():table.add_row('Stale '+key,reason['reason'])
     Console().print(table)
     if manifest.source.copy_mode == "reference":
         typer.echo("Warning: 如果原文件以后移动或删除，该 Edition 的 Source 会失效。")
@@ -314,6 +316,9 @@ def render(book: str, force: bool = typer.Option(False, "--force"),
         except (OSError, subprocess.CalledProcessError):
             typer.echo('Could not open browser automatically. Open index.html manually.')
 
+
+from book_distiller.cli.phase8 import register
+register(app)
 
 if __name__ == "__main__":
     app()

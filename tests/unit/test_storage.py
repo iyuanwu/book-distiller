@@ -55,9 +55,9 @@ def test_database_initialize(isolated_storage):
     database.initialize()
     database.check()
     with database.connect() as connection:
-        assert connection.execute("SELECT version FROM schema_meta").fetchone()[0] == 1
+        assert connection.execute("SELECT version FROM schema_meta").fetchone()[0] == 2
         tables = {r[0] for r in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        assert tables == {"schema_meta", "books", "editions", "runs", "tasks"}
+        assert tables == {"schema_meta", "books", "editions", "runs", "tasks", "run_tasks"}
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
 
 

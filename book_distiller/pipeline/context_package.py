@@ -31,7 +31,10 @@ def iter_selected_blocks(path: Path, selection: SelectionSpec) -> Iterator[Norma
 
 def context_digest(package: ContextPackage) -> str:
     """Hash all package fields except the self-referential context_hash."""
-    return json_hash(package.model_dump(mode="json", exclude={"context_hash"}))
+    data=package.model_dump(mode="json", exclude={"context_hash"})
+    if not package.human_guidance:
+        data.pop("human_guidance",None)
+    return json_hash(data)
 
 
 def render_context(package: ContextPackage) -> str:
@@ -58,6 +61,8 @@ def render_context(package: ContextPackage) -> str:
     if hasattr(package, 'scope'):
         lines += ["", "## Synthesis inputs (untrusted source-derived data)",
                   canonical_json(package.model_dump(mode='json',include={'scope','payload','classification','input_hash'}))]
+    if package.human_guidance:
+        lines += ["", "## Human Guidance / Protected Objects", canonical_json(package.human_guidance)]
     lines += ["", "## Budget", f"Selected blocks: {package.budget.selected_blocks}/{package.budget.total_available_blocks}",
         f"Selected chars: {package.budget.selected_chars}; estimated tokens: {package.budget.estimated_tokens}",
         f"Truncated: {package.budget.truncated}", "Token counts are deterministic estimates, not tokenizer measurements."]
@@ -65,7 +70,10 @@ def render_context(package: ContextPackage) -> str:
 
 
 def measure(package: ContextPackage) -> int:
-    return max(len(canonical_json(package.model_dump(mode="json"))), len(render_context(package)))
+    data=package.model_dump(mode="json")
+    if not package.human_guidance:
+        data.pop("human_guidance",None)
+    return max(len(canonical_json(data)), len(render_context(package)))
 
 
 def finalize_budget(package: ContextPackage) -> None:

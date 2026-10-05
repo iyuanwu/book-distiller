@@ -140,7 +140,7 @@ def test_l0_first_sentence_is_exact_not_paraphrased():
     assert view['items'][0]['fields']==[{'field':'statement (excerpt)','text':'保留先前状态。'}]
 
 
-@pytest.mark.parametrize('scenario', ['empty', 'valid', 'invalid', 'malformed', 'navigation', 'history', 'search'])
+@pytest.mark.parametrize('scenario', ['empty', 'valid', 'invalid', 'malformed', 'navigation', 'history', 'search', 'stale', 'human'])
 def test_actual_reader_script_routes(tmp_path, scenario):
     """Exercise the real app.js, including initialization, not a copied route regex."""
     import shutil
@@ -149,7 +149,7 @@ def test_actual_reader_script_routes(tmp_path, scenario):
     if node is None:
         pytest.skip('Node is needed only for deterministic reader JS unit tests')
     data = fixture_data()
-    add(data, 'idea')
+    add(data, 'idea', human={'human_modified':True,'human_verified':True,'locked':True},user_notes=[{'text':'Independent User Note'}])
     data['book']['chapters']['ch_0001'] = dict(chapter_id='ch_0001',title='Original chapter',atom_ids=[],claim_ids=[])
     view = ReaderViewModel.finish(data, RULES)
     payload = tmp_path/'view.json'

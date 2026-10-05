@@ -48,6 +48,10 @@ class ReaderViewModel:
         objects = {}
         def add(row, kind, id_key):
             key = row[id_key]
+            from book_distiller.human.resolver import EffectiveKnowledgeResolver, ref as human_ref
+            h=EffectiveKnowledgeResolver(directory)
+            human=h.effective(human_ref(kind,row.get('generation_id',model['generation_id']),key,row.get('chapter_id')),row)
+            row=human['value']
             require(key not in objects, 'Duplicate object ID')
             require(key in graph and graph[key]['object_ref']['object_type'] == kind, 'Missing verification path')
             lower = row.get('claim_ids', []) if kind == 'knowledge_atom' else row.get('atom_ids', []) + row.get('core_idea_ids', []) + row.get('model_ids', [])
@@ -61,7 +65,8 @@ class ReaderViewModel:
             objects[key] = {k: v for k, v in row.items() if k in SEMANTIC} | {
                 'id': key, 'type': kind, 'anchor': PREFIX[kind]+'-'+key,
                 'chapter_id': row.get('chapter_id'), 'ref': graph[key]['object_ref'],
-                'lower_ids': lower}
+                'lower_ids': lower, 'human':{k:human[k] for k in ('human_modified','human_verified','locked')},
+                'user_notes':[n for n in h.notes() if n['target_ref']==human['target_ref']]}
         for ch, dep in sorted(model['dependencies']['chapters'].items()):
             path = safe_child(directory, dep['path'])
             for row in read(path/'claims.jsonl'):
@@ -86,6 +91,9 @@ class ReaderViewModel:
         require(len(citations) == len(citation_ids), 'Duplicate citation')
         require(set(assessments) == set(objects), 'Missing assessment')
         concepts = {c['concept_id']: c for c in read(book_path/'concepts.json')['concepts']}
+        from book_distiller.human.resolver import EffectiveKnowledgeResolver,ref as human_ref
+        human=EffectiveKnowledgeResolver(directory)
+        concepts={k:human.effective(human_ref('concept',model['generation_id'],k),v)['value'] for k,v in concepts.items()}
         issues = read(verification/'review_issues.json')['issues']
         for issue in issues:
             require(set(issue['source_refs']) <= citation_ids, 'Issue references missing citation')
@@ -116,6 +124,8 @@ class ReaderViewModel:
             'derived': True}, 'knowledge': {'objects': objects, 'relationships': relationships},
             'concepts': concepts, 'quality': {'report': quality, 'issues': issues, 'assessments': assessments, 'coverage': coverage},
             'evidence': evidence.build(document, citations, rules)}
+        from book_distiller.human.resolver import EffectiveKnowledgeResolver
+        data['user_notes']=EffectiveKnowledgeResolver(directory).notes()
         return cls.finish(data, rules)
 
     @classmethod

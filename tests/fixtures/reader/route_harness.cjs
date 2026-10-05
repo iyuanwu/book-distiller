@@ -15,7 +15,7 @@ class Element {
  addEventListener(name,fn){this.events[name]=fn;}
  setAttribute(name,value){this[name]=value;}
 }
-const ids=Object.fromEntries(['main','evidence-panel','left','right','navigation','search-form','search','nav-toggle','evidence-toggle'].map(k=>[k,new Element('div')]));
+const ids=Object.fromEntries(['gate','main','evidence-panel','left','right','navigation','search-form','search','nav-toggle','evidence-toggle'].map(k=>[k,new Element('div')]));
 const links=()=>ids.navigation.children.filter(n=>n.tag==='a');
 const document={getElementById:k=>ids[k],createElement:t=>new Element(t),querySelectorAll:q=>{assert.equal(q,'nav a');return links();}};
 const initial=scenario==='valid'?'#l3':scenario==='invalid'?'#obsolete-claim':scenario==='malformed'?'#%ZZ':'';
@@ -23,6 +23,7 @@ const entries=[initial];let position=0,replaces=0;const events={};
 const location={get hash(){return entries[position];},set hash(v){entries.splice(position+1);entries.push(v.startsWith('#')?v:'#'+v);position++;events.hashchange?.();}};
 const history={state:{marker:'preserve me'},replaceState(state,unused,url){assert.equal(state,this.state);assert.equal(url,'#l0');entries[position]=url;replaces++;},back(){if(position>0){position--;events.hashchange();}},forward(){if(position<entries.length-1){position++;events.hashchange();}}};
 const window={BOOK_DISTILLER_DATA:data,location,history,scrollTo(){},addEventListener:(name,fn)=>events[name]=fn};
+if(scenario==='stale')window.BOOK_DISTILLER_LIVE_STATUS={status:'stale',reason:'Human semantic edit'};
 vm.runInNewContext(fs.readFileSync(script,'utf8'),{window,document,location,history,console});
 function readable(){assert.ok(ids.main.children.length>0);assert.ok(!ids.main.textContent.includes('找不到这个目标'));}
 readable();
@@ -51,3 +52,6 @@ if(scenario==='search'){
  assert.equal(decodeURIComponent(location.hash),'#search:已有');assert.ok(ids.main.textContent.includes('搜索知识模型'));
 }
 console.log(JSON.stringify({scenario,passed:true,hash:location.hash,navigationTargets:links().map(n=>n.hash)}));
+
+if(scenario==='stale'){assert.ok(ids.gate.textContent.includes('NEEDS RE-VERIFICATION'));assert.ok(!ids.gate.textContent.includes('PASS'));}
+if(scenario==='human'){location.hash='#idea-idea';for(const text of ['Human modified','Human verified','Locked','✍️ User Note'])assert.ok(ids.main.textContent.includes(text),text);}

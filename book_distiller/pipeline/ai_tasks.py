@@ -84,6 +84,16 @@ class AITaskService:
             context = build_knowledge_context(document,task.task_id,workflow,**knowledge['context'])
         else:
             context = build_context_package(document, task.task_id, workflow, selection, budget)
+        from book_distiller.human.service import guidance
+        from book_distiller.human.resolver import EffectiveKnowledgeResolver
+        from book_distiller.pipeline.context_package import finalize_budget
+        types = knowledge['types'] if knowledge else synthesis['types'] if synthesis else verification['types'] if verification else []
+        context.human_guidance = guidance(self.library.files.root, directory, workflow.task_type, types)
+        context.human_guidance['protected_objects'] = EffectiveKnowledgeResolver(directory).protected()
+        context.human_guidance['lock_instruction'] = 'Do not modify or generate equivalent replacements for protected objects; Core carries them forward after dependency checks.'
+        finalize_budget(context)
+        if context.budget.selected_chars > context.budget.limits.max_chars:
+            raise ProtocolError('HUMAN_CONTEXT_TOO_LARGE','Human guidance exceeds bounded Context budget')
         schema = workflow.output_schema()
         request = AIRequest(task_id=task.task_id, task_type=workflow.task_type, context_package_version=context.package_version, book_id=manifest.book.book_id,
             edition_id=manifest.edition.edition_id, source_sha256=manifest.source.sha256,
@@ -154,6 +164,10 @@ class AITaskService:
             else:
                 from book_distiller.pipeline.chapter_tasks import ChapterTasks
                 rebuilt = ChapterTasks(self).rebuild(directory, document, context, workflow)
+            from book_distiller.pipeline.context_package import finalize_budget
+            # Guidance is frozen per task; later user rules take effect only in new tasks.
+            rebuilt.human_guidance = context.human_guidance
+            finalize_budget(rebuilt)
             if rebuilt.context_hash != context.context_hash:
                 raise ValueError("Context no longer matches its Canonical selection")
             return request, context, document
@@ -206,6 +220,12 @@ class AITaskService:
                 result.created_at = datetime.now(timezone.utc)
                 canonical.parent.mkdir(parents=True, exist_ok=True)
                 old = canonical.read_bytes() if canonical.exists() else None
+                if task['task_type']=='classify_book':
+                    history=safe_child(directory,'analysis/classification-generations');history.mkdir(parents=True,exist_ok=True)
+                    if old:
+                        prior=json.loads(old)
+                        archive=history/(str(UUID(prior['task_id']))+'.json')
+                        if not archive.exists():write_bytes(archive,old)
                 write_json(task_dir / "result.json", result)
                 write_json(task_dir / "validation.json", {"status":"validated", "context_hash":request.context_hash,
                     "validated_at":datetime.now(timezone.utc).isoformat()})
@@ -215,6 +235,10 @@ class AITaskService:
                 publication = None
                 try:
                     with self.library.database.transaction() as connection:
+                        if task['task_type']=='classify_book':
+                            from book_distiller.human.locks import protect_classification
+                            write_json(history/(str(task_id)+'.json'),result)
+                            result=protect_classification(self,directory,result)
                         write_json(canonical, result)
                         self._complete(connection, task_id)
                         if task['task_type']=='build_chapter_atoms':
@@ -229,6 +253,16 @@ class AITaskService:
                     else:
                         write_bytes(canonical, old)
                     raise
+                if task['task_type']=='build_chapter_atoms':
+                    from book_distiller.human.locks import rebase_chapter
+                    from book_distiller.pipeline.chapter_tasks import ChapterTasks
+                    generation=ChapterTasks(self).load_generation(directory,context.generation.generation_id)
+                    rebase_chapter(self,directory,generation)
+                    from book_distiller.pipeline.staleness import complete
+                    complete(directory,'atoms',generation.chapter_id)
+                if task['task_type']=='classify_book':
+                    from book_distiller.pipeline.staleness import complete
+                    complete(directory,'classification')
                 write_json(task_dir / "validation.json", {"status":"applied", "context_hash":request.context_hash,
                     "validated_at":datetime.now(timezone.utc).isoformat()})
                 if task['task_type'] in BOOK_WORKFLOWS | VERIFY_WORKFLOWS:

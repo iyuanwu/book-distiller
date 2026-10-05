@@ -4,11 +4,11 @@ Book Distiller 是一个本地、Codex 驱动的书籍知识蒸馏系统。
 
 ## 当前状态
 
-**Phase 7：L0–L5 Progressive Reading + Static HTML Reader。当前支持 Verified Knowledge Model、离线阅读、证据导航、质量面板、搜索、知识地图、知识卡片和 Markdown 导出。**
+**Phase 8：Resume / Rerun / Human Override。保留 Phase 1–7 的蒸馏、核验和静态阅读能力，新增用户级 Run、检查点恢复、范围重跑及独立人工层。**
 
 已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization、确定性 Parse Quality、Codex Workflow Protocol、Context Package、Book Classification、Analysis Chunk、Atomic Claims、Chapter Knowledge Atoms、Concept Registry、跨章关联/去重决策、Core Ideas、Mental Models、Meta Principles、Book Memory、Citation Verification、Fidelity Review、Coverage Review 和 Quality Gate。
 Docling 在进程内解析 PDF、EPUB、DOCX、Markdown；TXT 由轻量 PlainTextAdapter 读取 UTF-8 段落。
-不推断作者、出版社或 ISBN。仍未完成完整 V1 蒸馏；未实现 Human Override、Book Ask、RAG、Embedding、Bundle、Backup、Benchmark、MinerU fallback 或外部研究。
+不推断作者、出版社或 ISBN。仍未完成完整 V1 蒸馏；未实现 Book Ask、RAG、Embedding、Bundle、Backup、Benchmark、MinerU fallback 或外部研究。
 
 ## 环境与安装
 
@@ -387,3 +387,41 @@ L5 从 Citation→Block→char range 动态生成导出片段，保留 SourceSpa
 阅读器可重新删除生成，不能反向写入知识。只在 Ingest→Parse→Classification→Claims→Atoms→Book synthesis→Verification→Render 全部完成后称“这本书的可阅读蒸馏结果已经生成”；整个 V1 尚未全部完成。浏览器对 file:// 的 UI 自动化或原件打开可能有额外限制，路径与位置仍可手工使用。
 
 设计决策：[ADR-016](docs/adr/ADR-016-progressive-reading.md)、[ADR-017](docs/adr/ADR-017-static-reader.md)。
+
+
+## Resume / Rerun / Human Override（Phase 8）
+
+```bash
+./book rerun <book> --from claims --chapter ch_0001 --dry-run
+./book rerun <book> --from claims --chapter ch_0001
+./book rerun <book> --from atoms --chapter ch_0001 --through atoms
+./book rerun <book> --from book
+./book rerun <book> --from verification
+./book rerun <book> --from render
+./book resume <book>
+./book resume <book> --run <run-uuid>
+./book human list <book>
+./book human show <book> --target /tmp/target.json
+./book human apply <book> --input /tmp/action.json
+./book human history <book>
+./book human note <book> --input /tmp/note.json
+./book human rule <book> --input /tmp/rule.json
+```
+
+阶段名为 parse、classification、claims、atoms、book、verification、render。重跑默认到 render；`--through` 限制本次执行的末端，下游仍标记 stale。`--chapter` 只适用于 claims/atoms。Dry-run 展示 Will rerun、Will reuse、Protected、Downstream stale，不写文件。锁冲突停止并报告 needs_review，不能使用 ignore-locks。
+
+Run 返回 pending Tasks 时仍需当前 Codex 读取每个 workflow/prompt/context/schema，提交真实判断，然后 resume。没有后台 AI。已完成 Task 的合格检查点复用；完成后的同一 Run 再 resume 不产生新 generation。旧 stage CLI 是低层适配器，不自动转换为 Run；没有 Run 时 resume 明确报错。
+
+`human list/show` 返回 generation-bound `target_ref` 和 `base_object_hash`。将它们原样放入 action：
+
+```json
+{"action":"edit","target_ref":{"object_type":"atomic_claim","generation_id":"<uuid>","object_id":"claim_ch_0001_0001_001","chapter_id":"ch_0001"},"base_object_hash":"<current hash>","patch":{"statement":"经人工核对的陈述"},"reason":"补回原书限定条件"}
+```
+
+verify/lock/unlock 使用相同身份与最新 hash，patch 留空。编辑后旧 hash 会被拒绝；identity、evidence 和下层 refs 不可编辑。历史 AI JSON 不变，人工动作追加到私有 event log；state.json 可重建。Human verified 不是 Quality PASS。
+
+Note JSON 为 `{"target_ref":{...},"text":"这个观点值得回看第3章。"}`。Rule JSON 为 `{"scope":"book","applicable_workflows":["build_core_ideas"],"instruction":"Do not promote examples to Core Ideas."}`；type scope 还需 book_type。结构/证据/锁不变量 > Book > Type > Global。规则只进入之后新 Task 的 Human Guidance，既有 Context 冻结，不自动重跑 Library。用户规则不写入 prompt 文件。
+
+内容 edit 使相应下游失效；verify/lock/unlock/note 只让 Reader 显示过期。Reader 使用有效人工内容，显示人工修改/确认/锁定/User Note。重新打开 managed output 会读取独立 stale 提示；已打开页面需刷新。复制出去的静态导出仅代表生成时 SNAPSHOT。
+
+所有 Run、Human、Context、知识、核验、Reader 和源书数据仍在 gitignored Library/data 或隔离 HOME 中。详见 [ADR-018](docs/adr/ADR-018-run-resume-rerun.md)、[ADR-019](docs/adr/ADR-019-human-effective-knowledge.md)、[ADR-020](docs/adr/ADR-020-reader-human-state.md)。

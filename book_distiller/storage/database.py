@@ -10,7 +10,12 @@ from book_distiller.core.enums import StageStatus
 from book_distiller.core.models import RunMetadata, TaskRecord
 from book_distiller.core.models.library import Manifest
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+MIGRATION_2 = (
+    "ALTER TABLE runs ADD COLUMN execution_json TEXT",
+    "CREATE TABLE run_tasks (run_id TEXT NOT NULL REFERENCES runs(run_id), task_id TEXT NOT NULL REFERENCES tasks(task_id), stage TEXT NOT NULL, chapter_id TEXT, PRIMARY KEY(run_id, task_id))",
+    "CREATE INDEX runs_edition_status ON runs(edition_id, status)",
+)
 SCHEMA = (
     "CREATE TABLE schema_meta (version INTEGER NOT NULL)",
     """CREATE TABLE books (
@@ -71,11 +76,20 @@ class Database:
             if not tables:
                 for statement in SCHEMA:
                     connection.execute(statement)
+                for statement in MIGRATION_2:
+                    connection.execute(statement)
                 connection.execute("INSERT INTO schema_meta(version) VALUES (?)", (SCHEMA_VERSION,))
             elif "schema_meta" not in tables:
                 raise StorageError("Unversioned database; refusing to modify it.")
             else:
                 versions = [row[0] for row in connection.execute("SELECT version FROM schema_meta")]
+                if versions == [1]:
+                    if not {"books", "editions", "runs", "tasks"}.issubset(tables):
+                        raise StorageError("Database schema is incomplete; refusing migration")
+                    for statement in MIGRATION_2:
+                        connection.execute(statement)
+                    connection.execute("UPDATE schema_meta SET version = 2")
+                    versions = [2]
                 if versions != [SCHEMA_VERSION]:
                     raise StorageError(f"Unsupported database schema version: {versions}; expected {SCHEMA_VERSION}.")
                 if not {"books", "editions", "runs", "tasks"}.issubset(tables):
@@ -153,7 +167,7 @@ class Database:
         row = connection.execute("SELECT book_id FROM editions WHERE edition_id = ?", (str(run.edition_id),)).fetchone()
         if not row or row[0] != str(run.book_id):
             raise StorageError("Run book and edition do not match")
-        connection.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (str(run.run_id), str(run.edition_id), run.mode.value, run.status.value, run.prompt_version, run.schema_version, run.pipeline_version, run.skill_version, run.created_at.isoformat(), run.updated_at.isoformat()))
+        connection.execute("INSERT INTO runs (run_id, edition_id, mode, status, prompt_version, schema_version, pipeline_version, skill_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (str(run.run_id), str(run.edition_id), run.mode.value, run.status.value, run.prompt_version, run.schema_version, run.pipeline_version, run.skill_version, run.created_at.isoformat(), run.updated_at.isoformat()))
 
     def task_status(self, task_id: UUID) -> str | None:
         """Read the persisted task outcome used to validate published parses."""

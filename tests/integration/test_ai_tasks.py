@@ -60,7 +60,7 @@ def test_prepare_submit_and_runtime_independence(ai_book):
     assert service.describe(ingest.library_path)['Classification']=='completed'
     with service.library.database.connect() as connection:
         assert connection.execute('SELECT count(*) FROM runs').fetchone()[0]==0
-        assert connection.execute('SELECT version FROM schema_meta').fetchone()[0]==1
+        assert connection.execute('SELECT version FROM schema_meta').fetchone()[0]==2
 
 
 @pytest.mark.parametrize('change,code',[
@@ -213,7 +213,9 @@ def test_failed_first_apply_leaves_no_canonical_and_can_retry(ai_book,monkeypatc
 def test_protocol_files_and_skill_static():
     assert json.loads((PROJECT/'schemas/types/classification.schema.json').read_text())==BookClassification.model_json_schema()
     skill=(PROJECT/'.codex/skills/book-distiller/SKILL.md').read_text()
-    assert 'Current implementation phase: Phase 7' in skill
+    assert 'Current implementation phase: Phase 8' in skill
     for route in ['workflow prepare classify','workflow submit','output.schema.json','STALE_CONTEXT','classification.json']:
         assert route in skill
     assert 'analyze book' in skill and './book verify <book>' in skill
+    assert './book resume <book>' in skill and './book rerun <book>' in skill
+    assert 'human apply' in skill and 'STALE_HUMAN_EDIT' in skill

@@ -31,6 +31,8 @@ class ChapterTasks:
         value=BookClassification.model_validate_json(path.read_text(encoding='utf-8'))
         if (value.book_id,value.edition_id,value.normalized_document_hash)!=(document.book.book_id,document.book.edition_id,document.fingerprint.document_hash) or self.library.database.task_status(value.task_id)!='completed':
             raise ProtocolError('STALE_CONTEXT','Classification must be completed for the current parse')
+        from book_distiller.human.resolver import EffectiveKnowledgeResolver, ref
+        value=BookClassification.model_validate(EffectiveKnowledgeResolver(directory).effective(ref('classification',value.task_id,'classification'),value.model_dump(mode='json'))['value'])
         return value,json_hash(value.model_dump(mode='json'))
 
     def resources(self,classification):
@@ -118,13 +120,42 @@ class ChapterTasks:
         except BookDistillerError: raise
         except Exception as exc: raise StorageError(f'Chapter prepare failed: {exc}') from exc
 
+    def fork_claims(self,selector,chapter):
+        with self.library.files.locked():
+            self.library._initialize();manifest,directory=self.ai._resolve(selector)
+            document=load_canonical(directory,manifest,self.library.database)
+            current=storage.current(directory,chapter)
+            if current is None:raise ProtocolError('CLAIMS_REQUIRED','No completed chapter to reuse')
+            info=json.loads((current/'chapter.json').read_text())
+            old=ChapterGeneration.model_validate(info['generation'])
+            classification,digest=self.classification(directory,document)
+            if old.normalized_document_hash!=document.fingerprint.document_hash or old.classification_hash!=digest:
+                raise ProtocolError('STALE_CONTEXT','Rerun Claims before Atoms')
+            generation=old.model_copy(update={'generation_id':uuid4(),'atom_task':None})
+            path=self.generation_path(directory,generation.generation_id);path.mkdir(parents=True)
+            write_json(path/'generation.json',generation)
+            shutil.copyfile(current/'chunks.json',path/'chunks.json')
+            write_json(path/'claims-fork.json',{'path':str((current/'claims.jsonl').relative_to(directory.resolve())), 'hash':hash_source(current/'claims.jsonl')[0]})
+            write_json(self.active_path(directory,chapter),{'generation_id':str(generation.generation_id)})
+            self.collect_claims(directory,document,generation)
+            return generation
+
     def pending_path(self,directory,generation):
         return safe_child(directory,f'knowledge/.pending/{generation.generation_id}')
 
     def collect_claims(self,directory,document,generation):
         _,chunks=self.verify_generation(directory,document,generation)
-        if len(generation.claim_tasks)!=len(chunks.chunks) or any(self.library.database.task_status(t)!='completed' for t in generation.claim_tasks.values()):
+        if not (self.generation_path(directory,generation.generation_id)/'claims-fork.json').exists() and (len(generation.claim_tasks)!=len(chunks.chunks) or any(self.library.database.task_status(t)!='completed' for t in generation.claim_tasks.values())):
             raise ProtocolError('CLAIMS_INCOMPLETE','Submit every Chunk task; completed tasks will be reused')
+        fork=self.generation_path(directory,generation.generation_id)/'claims-fork.json'
+        if fork.exists():
+            info=json.loads(fork.read_text());source=safe_child(directory,info['path'])
+            if hash_source(source)[0]!=info['hash']:raise ProtocolError('STALE_CONTEXT','Reused Claims changed')
+            claims=[AtomicClaim.model_validate_json(line) for line in source.read_text().splitlines()]
+            from book_distiller.human.resolver import EffectiveKnowledgeResolver,ref
+            resolver=EffectiveKnowledgeResolver(directory)
+            claims=[AtomicClaim.model_validate(resolver.effective(ref('atomic_claim',c.generation_id,c.claim_id,c.chapter_id),c.model_dump(mode='json'))['value']|{'generation_id':str(generation.generation_id)}) for c in claims]
+            return self.write_claims(directory,document,generation,chunks,claims)
         claims=[]
         for chunk in chunks.chunks:
             task_id=generation.claim_tasks[chunk.chunk_id]
@@ -140,6 +171,11 @@ class ChapterTasks:
             for ordinal,claim in enumerate(result.claims,1):
                 claims.append(AtomicClaim(**meta,**claim.model_dump(),
                     claim_id=f'claim_{generation.chapter_id}_{chunk.chunk_id.rsplit("_",1)[1]}_{ordinal:03d}'))
+        return self.write_claims(directory,document,generation,chunks,claims)
+
+    def write_claims(self,directory,document,generation,chunks,claims):
+        from book_distiller.human.locks import merge_claims
+        claims=merge_claims(self.ai,directory,generation,claims)
         # Re-check the current generation and every reference before publishing Chapter Claims.
         referenced={e.block_id for c in claims for e in c.evidence}
         actual={b.block_id for b in read_blocks(document.blocks_path) if b.chapter_id==generation.chapter_id and b.block_id in referenced}
@@ -225,6 +261,8 @@ class ChapterTasks:
         actual={b.block_id for b in read_blocks(document.blocks_path) if b.chapter_id==generation.chapter_id and b.block_id in refs}
         if actual!=refs: raise ProtocolError('RESULT_EVIDENCE_INVALID','Evidence missing at publish')
         atoms=[KnowledgeAtom(**result.model_dump(exclude={'atoms'}),**a.model_dump(),atom_id=f'atom_{generation.chapter_id}_{i:03d}') for i,a in enumerate(result.atoms,1)]
+        from book_distiller.human.locks import merge_atoms
+        atoms=merge_atoms(self.ai,directory,generation,atoms,claims)
         assigned={cid for a in atoms for cid in a.claim_ids}
         statements=[unicodedata.normalize('NFC',' '.join(c.statement.split())).casefold() for c in claims]
         warnings=[]
@@ -235,13 +273,20 @@ class ChapterTasks:
         metrics={'claims':len(claims),'atoms':len(atoms),'assigned_claims':len(assigned),'unassigned_claims':len(claims)-len(assigned),
             'claims_with_evidence':sum(bool(c.evidence) for c in claims),'evidence_block_validity':1.0 if refs else None,
             'duplicate_exact_claims':duplicate_count,'average_claims_per_atom':sum(len(a.claim_ids) for a in atoms)/len(atoms) if atoms else 0}
+        current=storage.current(directory,generation.chapter_id)
+        if current:
+            published=json.loads((current/'chapter.json').read_text())['generation']
+            if published['generation_id']==str(generation.generation_id) and published['atom_task']==str(result.task_id):
+                import os
+                return storage.Publication(directory/'knowledge/chapters'/generation.chapter_id,os.readlink(directory/'knowledge/chapters'/generation.chapter_id))
         parent=safe_child(directory,'knowledge/.generations');parent.mkdir(parents=True,exist_ok=True)
         stage=parent/f'.stage-{uuid4()}';stage.mkdir()
         try:
             for name in ('claims.jsonl','chunks.json','claims-receipt.json'):
                 shutil.copyfile(self.pending_path(directory,generation)/name,stage/name)
             write_json(stage/'atoms.json',{'schema_version':'1.0','atoms':[a.model_dump(mode='json') for a in atoms]})
-            write_json(stage/'chapter.json',{'generation':generation.model_dump(mode='json'),'status':'completed',
+            from book_distiller.human.resolver import EffectiveKnowledgeResolver
+            write_json(stage/'chapter.json',{'human_claims_hash':EffectiveKnowledgeResolver(directory).semantic_hash({'atomic_claim'},generation.chapter_id),'generation':generation.model_dump(mode='json'),'status':'completed',
                 'normalized_document':document.fingerprint.model_dump(mode='json'),
                 'normalized_blocks_path':f'.parsed-generations/{document.fingerprint.parse_task_id}/normalized/blocks.jsonl',
                 'source_parse_quality':context.source_parse_quality,'chunk_count':len(generation.claim_tasks),
@@ -269,7 +314,8 @@ class ChapterTasks:
                     raise StorageError('Knowledge artifact integrity mismatch')
             metadata=ChapterGeneration.model_validate(info['generation'])
             _,classification_hash=self.classification(directory,document)
-            if metadata.normalized_document_hash!=document.fingerprint.document_hash or metadata.classification_hash!=classification_hash:
+            from book_distiller.human.resolver import EffectiveKnowledgeResolver
+            if (info.get('human_claims_hash',json_hash([]))!=EffectiveKnowledgeResolver(directory).semantic_hash({'atomic_claim'},chapter.chapter_id) or metadata.normalized_document_hash!=document.fingerprint.document_hash or metadata.classification_hash!=classification_hash):
                 stale+=1;continue
             if self.library.database.task_status(metadata.atom_task)!='completed':
                 raise StorageError('Chapter pending apply; resubmit its Atom task')

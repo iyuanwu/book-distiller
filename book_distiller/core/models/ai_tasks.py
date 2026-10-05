@@ -91,6 +91,7 @@ class BudgetRecord(DocumentModel):
 
 
 class ContextPackage(DocumentModel):
+    human_guidance: dict = Field(default_factory=dict)
     package_version: Literal["1.0"] = CONTEXT_VERSION
     task_id: UUID
     task_type: str

@@ -132,6 +132,35 @@ class ParseService:
                 if stage is not None:
                     store.discard_stage(stage)
 
+    def recover(self, selector: str) -> None:
+        """Run-owned recovery under the library lock; preserve abandoned candidates."""
+        library = self.library
+        with library.files.locked():
+            library._initialize()
+            records = library.database.lookup_book(selector)
+            if len(records) != 1:
+                raise ValidationError('Recovery requires one indexed Edition')
+            manifest = records[0]
+            directory = library.files.library / manifest.book.slug
+            store = ParsedStorage(directory)
+            latest = library.database.latest_parse_task(manifest.edition.edition_id)
+            if not latest or latest['status'] not in {'pending', 'running'}:
+                return
+            current = store.inspect()
+            published = current and str(current[0].task_id) == latest['task_id']
+            if published:
+                library.database.update_task_status(UUID(latest['task_id']), StageStatus.COMPLETED)
+            else:
+                library.database.update_task_status(UUID(latest['task_id']), StageStatus.FAILED)
+            # An unsealed candidate cannot be resumed inside the parser. Archive it
+            # and run a fresh parse; no source/normalized generation is overwritten.
+            archive = directory / 'parse_failures' / latest['task_id']
+            for prefix in ('.parse-staging-', '.parsed-link-'):
+                artifact = directory / (prefix + latest['task_id'])
+                if artifact.exists() or artifact.is_symlink():
+                    archive.mkdir(parents=True, exist_ok=True)
+                    artifact.rename(archive / artifact.name)
+
     def describe(self, book_root: Path, edition_id: UUID) -> dict[str, str]:
         """Describe the last successful generation and latest task separately."""
         store = ParsedStorage(book_root)

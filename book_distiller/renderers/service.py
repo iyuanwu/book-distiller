@@ -1,3 +1,4 @@
+from book_distiller.pipeline.dependencies import compatible_dependencies
 """Derived reader transaction. No AI execution, canonical writes or new facts."""
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,13 +26,16 @@ class RenderService:
 
     def inputs(self, selector):
         manifest, directory = self.ai._resolve(selector)
+        from book_distiller.pipeline.staleness import read as stale_state
+        if any(k!='render' for k in stale_state(directory)):
+            raise StorageError('STALE / NEEDS RE-VERIFICATION: unfinished pipeline invalidation')
         document = load_canonical(directory, manifest, self.ai.library.database)
         classification, deps, book, model = VerificationTasks(self.ai).dependencies(directory, document, allow_missing_reference=True)
         verified = verification.current(directory)
         if verified is None:
             raise StorageError('VERIFICATION_REQUIRED: complete verification before render')
         evaluation = read(verified/'manifest.json')
-        if evaluation['dependencies'] != deps:
+        if not compatible_dependencies(evaluation['dependencies'],deps):
             raise StorageError('STALE: Current knowledge or verification is stale. Re-run the required pipeline before rendering.')
         gate = read(verified/'quality_report.json')['status']
         if gate not in ('pass', 'needs_review'):
@@ -41,7 +45,8 @@ class RenderService:
                      *sorted((self.project/'book_distiller/renderers').glob('*.py')),
                      self.project/'book_distiller/storage/reader.py', self.project/'rules/reader/standard.json']
         original = Path(manifest.source.stored_path) if manifest.source.copy_mode == 'reference' else directory/manifest.source.stored_path
-        hashes = {'book': hash_source(book/'book_model.json')[0], 'verification': hash_source(verified/'manifest.json')[0],
+        from book_distiller.human.resolver import EffectiveKnowledgeResolver
+        hashes = {'human_display':EffectiveKnowledgeResolver(directory).display_hash(),'book': hash_source(book/'book_model.json')[0], 'verification': hash_source(verified/'manifest.json')[0],
                   'normalized': document.fingerprint.document_hash, 'classification': deps['knowledge_dependencies']['classification_hash'],
                   'renderer': json_hash({str(p.relative_to(self.project)): hash_source(p)[0] for p in resources}),
                   'display': json_hash({'title': reader_title(manifest, document), 'source': str(original), 'available': original.exists()}), 'reader_version': READER_VERSION}
@@ -83,6 +88,9 @@ class RenderService:
                 if fresh['input_hash'] != metadata['input_hash']:
                     raise StorageError('STALE: dependencies changed during render')
                 reader.publish(directory, destination)
+                from book_distiller.pipeline.staleness import reader_status, complete
+                complete(directory,'render')
+                reader_status(directory,'current','Current verified reader')
             except BaseException:
                 pointer = directory/'output'
                 if pointer.is_symlink() and os.readlink(pointer) == '.reader-generations/'+destination.name:
@@ -97,6 +105,8 @@ class RenderService:
             path = reader.current(directory)
             if path is None:
                 return {'Reader': 'unavailable'}
+            from book_distiller.pipeline.staleness import read as stale_state
+            if stale_state(directory):return {'Reader':'stale','Reader path':str(directory/'output/index.html')}
             _, metadata, _ = self.inputs(selector)
             state = 'completed' if reader.intact(path) and read(path/'render_manifest.json')['input_hash'] == metadata['input_hash'] else 'stale'
             return {'Reader': state, 'Reader path': str(directory/'output/index.html')}
