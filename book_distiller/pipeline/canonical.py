@@ -1,3 +1,4 @@
+from book_distiller.bundle.receipt import available as imported_available
 """Read verified Canonical documents without opening parser raw files."""
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,7 +39,7 @@ def load_canonical(book_root: Path, manifest: Manifest, database: Database) -> C
     if generation is None:
         raise StorageError("NOT_PARSED: run book parse before preparing an AI task.")
     receipt = ParseReceipt.model_validate_json((generation / "completion.json").read_text(encoding="utf-8"))
-    if database.task_status(receipt.task_id) != "completed":
+    if database.task_status(receipt.task_id) != "completed" and not imported_available(book_root, generation / "completion.json"):
         raise StorageError("PARSE_NOT_COMPLETED: classification requires a successful parse.")
     hashes: dict[str, str] = {}
     for filename in ("book.json", "blocks.jsonl", "quality.json"):

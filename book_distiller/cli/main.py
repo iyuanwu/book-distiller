@@ -17,7 +17,7 @@ from book_distiller.core.models.library import Manifest
 from book_distiller.core.paths import find_project_root, storage_root
 from book_distiller.core.version import get_version
 
-app = typer.Typer(help="Book Distiller — Phase 8 resume, scoped rerun and human overrides.", no_args_is_help=True)
+app = typer.Typer(help="Book Distiller — Book Ask and portable Book Bundles.", no_args_is_help=True)
 
 
 @app.command()
@@ -74,6 +74,8 @@ def _error(exc: BookDistillerError) -> None:
 
 
 def _detail(manifest: Manifest, library: Path) -> None:
+    from book_distiller.bundle.receipt import receipt
+    imported = receipt(library)
     table = Table(show_header=False)
     table.add_column("Field")
     table.add_column("Value")
@@ -82,10 +84,15 @@ def _detail(manifest: Manifest, library: Path) -> None:
         ("Slug", manifest.book.slug), ("Edition", str(manifest.edition.edition_id)),
         ("Source", manifest.source.original_filename), ("Stored path", manifest.source.stored_path),
         ("SHA256", manifest.source.sha256), ("Copy mode", manifest.source.copy_mode),
-        ("Library", str(library)), ("Status", manifest.book.status.value),
+        ("Library", str(library)), ("Status", "imported snapshot" if imported else manifest.book.status.value),
         ("Metadata", manifest.book.metadata_status), ("Created at", manifest.created_at.isoformat()),
     ):
         table.add_row(Text(label), Text(value))
+    if imported:
+        table.add_row("Artifact provenance", "Imported snapshot; historical Tasks/Runs not executed locally")
+        table.add_row("Original source", "included" if imported["source_included"] else "unavailable; reparse unavailable")
+        if imported.get("external_rule_dependencies"):
+            table.add_row("External Human Rules", "Global/Type dependencies recorded; bodies excluded; new work checks local availability")
     service = ParseService(storage_root(find_project_root()))
     for label, value in service.describe(library, manifest.edition.edition_id).items():
         table.add_row(Text(label), Text(value))
@@ -157,7 +164,9 @@ def status(book: str | None = typer.Argument(None, help="Exact book ID or slug."
     else:
         table = Table("Book", "Slug", "Edition", "Status")
         for manifest in records:
-            table.add_row(Text(manifest.book.title), Text(manifest.book.slug), str(manifest.edition.edition_id), manifest.book.status.value)
+            from book_distiller.bundle.receipt import receipt
+            imported = receipt(service.files.library / manifest.book.slug)
+            table.add_row(Text(manifest.book.title), Text(manifest.book.slug), str(manifest.edition.edition_id), "imported snapshot" if imported else manifest.book.status.value)
         Console().print(table)
 
 
@@ -325,6 +334,9 @@ register(app)
 
 from book_distiller.cli.ask import register as register_ask
 register_ask(app)
+
+from book_distiller.cli.bundle import register as register_bundle
+register_bundle(app)
 
 if __name__ == "__main__":
     app()

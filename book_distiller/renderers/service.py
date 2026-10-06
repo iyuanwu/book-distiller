@@ -44,12 +44,13 @@ class RenderService:
         resources = [*sorted((self.project/'templates/reader').glob('*')),
                      *sorted((self.project/'book_distiller/renderers').glob('*.py')),
                      self.project/'book_distiller/storage/reader.py', self.project/'rules/reader/standard.json']
-        original = Path(manifest.source.stored_path) if manifest.source.copy_mode == 'reference' else directory/manifest.source.stored_path
+        from book_distiller.bundle.receipt import source_display
+        source = source_display(directory, manifest)
         from book_distiller.human.resolver import EffectiveKnowledgeResolver
         hashes = {'human_display':EffectiveKnowledgeResolver(directory).display_hash(),'book': hash_source(book/'book_model.json')[0], 'verification': hash_source(verified/'manifest.json')[0],
                   'normalized': document.fingerprint.document_hash, 'classification': deps['knowledge_dependencies']['classification_hash'],
                   'renderer': json_hash({str(p.relative_to(self.project)): hash_source(p)[0] for p in resources}),
-                  'display': json_hash({'title': reader_title(manifest, document), 'source': str(original), 'available': original.exists()}), 'reader_version': READER_VERSION}
+                  'display': json_hash({'title': reader_title(manifest, document), 'source': source['path'], 'available': source['available']}), 'reader_version': READER_VERSION}
         metadata = {'book_id': str(manifest.book.book_id), 'edition_id': str(manifest.edition.edition_id),
                     'book_generation_id': model['generation_id'], 'verification_generation_id': evaluation['generation_id'],
                     'reader_version': READER_VERSION, 'quality_gate': gate, 'source_sha256': manifest.source.sha256,

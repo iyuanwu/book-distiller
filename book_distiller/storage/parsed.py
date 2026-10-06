@@ -1,3 +1,4 @@
+from book_distiller.bundle.receipt import available as imported_available
 """Immutable parse generations with one atomic pointer for raw and normalized."""
 from pathlib import Path
 import json
@@ -81,7 +82,10 @@ class ParsedStorage:
             required.add("raw/plaintext.txt")
         if not required.issubset(receipt.artifact_hashes):
             raise StorageError("Incomplete parsed artifact inventory")
-        for name, digest in receipt.artifact_hashes.items():
+        artifacts = receipt.artifact_hashes
+        if imported_available(self.root, current / 'completion.json'):
+            artifacts = {k:v for k,v in artifacts.items() if k.startswith('normalized/')}
+        for name, digest in artifacts.items():
             path = current / name
             if Path(name).is_absolute() or ".." in Path(name).parts or not path.resolve().is_relative_to(current.resolve()):
                 raise StorageError("Unsafe parsed artifact path")

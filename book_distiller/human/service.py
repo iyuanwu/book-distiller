@@ -136,4 +136,10 @@ def guidance(home,directory,workflow,types):
         revisions={v['rule_id']:v for v in read_events(path)}
         rows=[HumanRule.model_validate(v) for v in revisions.values()]
         result += [v.model_dump(mode='json') for v in sorted(rows,key=lambda r:(r.priority,str(r.rule_id))) if v.enabled and workflow in v.applicable_workflows]
-    return {'precedence':'System invariants > Book > Type > Global; later scope wins. Never override schema, evidence integrity or locks.', 'rules':result}
+    value = {'precedence':'System invariants > Book > Type > Global; later scope wins. Never override schema, evidence integrity or locks.', 'rules':result}
+    from book_distiller.bundle.receipt import external_rule_status
+    dependencies = external_rule_status(directory,result,workflow)
+    if dependencies:
+        value['external_rule_dependencies'] = dependencies
+        value['warnings'] = ['Imported snapshot has missing or changed external Human Rules; only locally available rules apply.'] if any(d['availability'] != 'available' for d in dependencies) else []
+    return value

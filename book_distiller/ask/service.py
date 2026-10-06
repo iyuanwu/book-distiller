@@ -147,6 +147,7 @@ class AskService:
                 n['target_ref']['object_type']=='book' and n['target_ref']['generation_id']==str(document.fingerprint.parse_task_id)) or (
                 n['target_ref']['object_type']=='citation' and n['target_ref']['generation_id']==scope['verification_generation_id'] and n['target_ref']['object_id'] in usable)]
             warnings = ['NEEDS_REVIEW: current book has unresolved review concerns.'] if gate=='needs_review' else []
+            warnings += human_guidance.get('warnings',[])
             warnings += [f"{i['issue_type']} [{i['issue_id']}]: {i['summary']}" for i in related_issues]
             warnings += [f"{a['fidelity_verdict']} / {a['evidence_strength']} [{a['object_ref']['object_id']}]: {a['verification_summary']}" for a in payload['assessments'] if quality_rank(a)>1]
             payload['quality_warnings'] = warnings

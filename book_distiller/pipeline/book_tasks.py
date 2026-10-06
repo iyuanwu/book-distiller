@@ -1,3 +1,4 @@
+from book_distiller.bundle.receipt import available as imported_available
 from book_distiller.pipeline.dependencies import compatible_dependencies
 """Checkpointed Book synthesis on the shared file protocol; never calls a model."""
 import json
@@ -56,7 +57,7 @@ class BookTasks:
                 raise ProtocolError('STALE_CONTEXT','Human Claim edit requires Atom rerun')
             if meta['normalized_document_hash']!=document.fingerprint.document_hash or meta['classification_hash']!=chash:
                 raise ProtocolError('STALE_CONTEXT',f'{chapter.chapter_id} must be atomized for the current source/classification')
-            if self.library.database.task_status(meta['atom_task'])!='completed':
+            if self.library.database.task_status(meta['atom_task'])!='completed' and not imported_available(directory,path/'chapter.json'):
                 raise ProtocolError('CHAPTER_INCOMPLETE',chapter.chapter_id)
             if set(info['artifact_hashes'])!={'claims.jsonl','chunks.json','claims-receipt.json','atoms.json'}:
                 raise StorageError('Incomplete Chapter artifact inventory')

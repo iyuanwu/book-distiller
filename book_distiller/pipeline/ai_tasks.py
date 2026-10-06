@@ -1,3 +1,4 @@
+from book_distiller.bundle.receipt import available as imported_available
 """Deterministic prepare/submit/apply protocol. Python never performs AI reasoning."""
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -305,7 +306,7 @@ class AITaskService:
             return {"Classification":"not available"}
         try:
             result = BookClassification.model_validate_json(path.read_text(encoding="utf-8"))
-            if self.library.database.task_status(result.task_id) != "completed":
+            if self.library.database.task_status(result.task_id) != "completed" and not imported_available(directory, path):
                 return {"Classification":"pending apply; resubmit the task"}
             manifest, _ = self._resolve(str(result.book_id))
             document = load_canonical(directory, manifest, self.library.database)

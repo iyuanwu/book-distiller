@@ -1,3 +1,4 @@
+from book_distiller.bundle.receipt import available as imported_available
 """Parse service: source integrity, adapters, normalization, tasks and publication."""
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -80,7 +81,7 @@ class ParseService:
             if not force and old:
                 current = store.inspect()
                 receipt, book, quality = current
-                if library.database.task_status(receipt.task_id) != "completed":
+                if library.database.task_status(receipt.task_id) != "completed" and not imported_available(directory, old/"completion.json"):
                     raise StorageError("Published result has no completed parse task; inspect interrupted publication.")
                 if book.book_id != manifest.book.book_id or book.edition_id != manifest.edition.edition_id:
                     raise StorageError("Parsed result identity does not match this Edition")
@@ -171,7 +172,7 @@ class ParseService:
             fields = {"Parse status": latest["status"] if latest else "not_parsed"}
             if current:
                 receipt, book, quality = current
-                if self.library.database.task_status(receipt.task_id) != "completed":
+                if self.library.database.task_status(receipt.task_id) != "completed" and not imported_available(book_root, store.current()/"completion.json"):
                     raise StorageError("Published result task is not completed")
                 fields = {"Parse status": "completed", "Parser": book.parser_metadata.parser,
                     "Parser version": book.parser_metadata.parser_version, "Parse quality": quality.status,

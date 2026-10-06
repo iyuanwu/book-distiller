@@ -110,7 +110,7 @@ class ReaderViewModel:
             require(set(relation['source_atom_ids']) <= objects.keys(), 'Broken relationship')
         source = manifest.source
         from pathlib import Path
-        original = Path(source.stored_path) if source.copy_mode == 'reference' else directory/source.stored_path
+        from book_distiller.bundle.receipt import source_display
         quality = read(verification/'quality_report.json')
         coverage = read(verification/'coverage_review.json')
         chapters = {c.chapter_id: c.model_dump(mode='json') for c in document.book.chapters}
@@ -120,7 +120,7 @@ class ReaderViewModel:
         data = {'book': {'title': reader_title(manifest, document), 'book_id': model['book_id'], 'edition_id': model['edition_id'],
             'book_generation_id': model['generation_id'], 'verification_generation_id': provenance['verification_generation_id'],
             'classification': classification.model_dump(mode='json'), 'chapters': chapters,
-            'source': {'path': str(original), 'available': original.exists(), 'uri': original.resolve().as_uri() if original.exists() else None},
+            'source': source_display(directory, manifest),
             'derived': True}, 'knowledge': {'objects': objects, 'relationships': relationships},
             'concepts': concepts, 'quality': {'report': quality, 'issues': issues, 'assessments': assessments, 'coverage': coverage},
             'evidence': evidence.build(document, citations, rules)}

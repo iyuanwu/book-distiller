@@ -34,8 +34,10 @@ class VerificationTasks:
         resources={n:json_hash({'workflow':hash_source(w.workflow_path)[0],'prompt':w.prompt_hash(),'schema':w.output_schema()}) for n in sorted(VERIFY_WORKFLOWS) for w in [load_workflow(self.ai.project,n,types)]}
         manifest,_=self.ai._resolve(str(document.book.book_id))
         source=Path(manifest.source.stored_path) if manifest.source.copy_mode=='reference' else directory/manifest.source.stored_path
+        from book_distiller.bundle.receipt import source_omitted
+        missing_bundle_source=not source.exists() and source_omitted(directory,manifest)
         missing_reference=allow_missing_reference and manifest.source.copy_mode=='reference' and not source.exists()
-        if not missing_reference and (not source.exists() or hash_source(source)[0]!=document.book.source_sha256):raise ProtocolError('SOURCE_INTEGRITY_FAILURE','Original source missing or changed')
+        if not (missing_reference or missing_bundle_source) and (not source.exists() or hash_source(source)[0]!=document.book.source_sha256):raise ProtocolError('SOURCE_INTEGRITY_FAILURE','Original source missing or changed')
         return classification,{'book_generation_id':model['generation_id'],'book_manifest_hash':hash_source(book/'book_model.json')[0],
             'book_path':str(book.relative_to(directory)),'knowledge_dependencies':deps,'rules_hash':json_hash(self.rules()),'resources':resources,'human_semantic_hash':__import__('book_distiller.human.resolver',fromlist=['EffectiveKnowledgeResolver']).EffectiveKnowledgeResolver(directory).semantic_hash()},book,model
     def root(self,directory,gid):return safe_child(directory,f'runtime/verification-generations/{UUID(str(gid))}')

@@ -1,3 +1,4 @@
+from book_distiller.bundle.receipt import available as imported_available
 """Chapter lifecycle built on the shared AI task protocol; no AI client."""
 import json
 import shutil
@@ -29,7 +30,7 @@ class ChapterTasks:
         path=safe_child(directory,'analysis/classification.json')
         if not path.exists(): raise ProtocolError('CLASSIFICATION_REQUIRED','Run classify first')
         value=BookClassification.model_validate_json(path.read_text(encoding='utf-8'))
-        if (value.book_id,value.edition_id,value.normalized_document_hash)!=(document.book.book_id,document.book.edition_id,document.fingerprint.document_hash) or self.library.database.task_status(value.task_id)!='completed':
+        if (value.book_id,value.edition_id,value.normalized_document_hash)!=(document.book.book_id,document.book.edition_id,document.fingerprint.document_hash) or (self.library.database.task_status(value.task_id)!='completed' and not imported_available(directory,directory/'analysis/classification.json')):
             raise ProtocolError('STALE_CONTEXT','Classification must be completed for the current parse')
         from book_distiller.human.resolver import EffectiveKnowledgeResolver, ref
         value=BookClassification.model_validate(EffectiveKnowledgeResolver(directory).effective(ref('classification',value.task_id,'classification'),value.model_dump(mode='json'))['value'])
@@ -317,7 +318,7 @@ class ChapterTasks:
             from book_distiller.human.resolver import EffectiveKnowledgeResolver
             if (info.get('human_claims_hash',json_hash([]))!=EffectiveKnowledgeResolver(directory).semantic_hash({'atomic_claim'},chapter.chapter_id) or metadata.normalized_document_hash!=document.fingerprint.document_hash or metadata.classification_hash!=classification_hash):
                 stale+=1;continue
-            if self.library.database.task_status(metadata.atom_task)!='completed':
+            if self.library.database.task_status(metadata.atom_task)!='completed' and not imported_available(directory,generation/'chapter.json'):
                 raise StorageError('Chapter pending apply; resubmit its Atom task')
             complete+=1;total_claims+=info['metrics']['claims'];total_atoms+=info['metrics']['atoms']
         return {'Knowledge Chapters':f'{complete} / {len(document.book.chapters)} atomized',

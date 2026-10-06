@@ -1,11 +1,11 @@
 ---
 name: book-distiller
-description: 在 Book Distiller 中导入本地书籍、解析 Canonical Document、查看 Library/Parse/Classification 状态并执行书型分类。用户问“这是什么类型的书”“分析这本书的类型”“给这本书分类”时路由 classify workflow。支持章节 Claims/Atoms 和全书知识模型综合，包括 Concepts、Core Ideas、Mental Models、Meta Principles；支持引用核验、幻觉与重大遗漏检查、Fidelity Review 和 Quality Gate；支持生成静态阅读版、打开阅读器、L0–L5、知识地图、卡片与证据浏览，支持基于当前有效知识与核验证据的单书问答。
+description: 在 Book Distiller 中导入本地书籍、解析 Canonical Document、查看 Library/Parse/Classification 状态并执行书型分类。用户问“这是什么类型的书”“分析这本书的类型”“给这本书分类”时路由 classify workflow。支持章节 Claims/Atoms 和全书知识模型综合，包括 Concepts、Core Ideas、Mental Models、Meta Principles；支持引用核验、幻觉与重大遗漏检查、Fidelity Review 和 Quality Gate；支持生成静态阅读版、打开阅读器、L0–L5、知识地图、卡片与证据浏览，支持基于当前有效知识与核验证据的单书问答，以及可移植单书快照的导出、检查与导入。
 ---
 
 # Book Distiller
 
-Current implementation phase: Phase 9A
+Current implementation phase: Phase 9B
 
 当前能力为 Document Foundation + Classification + Chapter Atomization + Book Knowledge Synthesis + Evidence & Quality Foundation + Progressive Static Reader。Skill 负责自然语言路由；Python CLI/Core 负责确定性操作；当前 Codex 是唯一 AI 推理引擎，不调用外部 LLM API。
 
@@ -125,4 +125,18 @@ Reader 显示 Human modified、Human verified、Locked 和 User Note。Human ver
 6. 写严格 BookAnswer JSON 到 Task result.json，执行 `./book ask submit <task-id> --result <result.json>`。格式错误可按已有最多两次修正规则 same-task retry；STALE_CONTEXT 必须重新 prepare 并重新判断，不只替换 hash。
 7. 成功后读取并展示实际 Answer、Evidence、Confidence、Quality warnings。`./book ask show <book> <answer-id>` 查看已保存快照，并可修复缺失 history 索引，无需重跑已完成 Codex。历史答案不自动代表当前状态。
 
-规则定义在 workflow、prompt、Pydantic Schema 和 Core，Skill 不复制 Retriever 算法。Ask 不修改 Knowledge、Verification、Quality Gate 或 Human state；答案、Context 和 history 保持私人且不进入 Git。没有外部搜索、embedding、vector DB、跨书 Ask 或 Phase 9B。
+规则定义在 workflow、prompt、Pydantic Schema 和 Core，Skill 不复制 Retriever 算法。Ask 不修改 Knowledge、Verification、Quality Gate 或 Human state；答案、Context 和 history 保持私人且不进入 Git。没有外部搜索、embedding、vector DB、跨书 Ask 或 Phase 9C。
+
+
+## Book Bundle 路由（Phase 9B）
+
+“导出这本书”“打包这本书”“迁移单书快照”路由 `./book bundle export <book> --output <path.bookbundle.zip>`。
+默认不包含原始文件，但包含 normalized 源书派生正文、当前 Knowledge / Verification / Evidence、Human journals、User Notes、Book Rules 和 Reader。用户明确要求原文件时加 `--include-source`。告知包含私人笔记与源书派生文本，不能称为匿名包。
+
+“检查这个 Bundle”路由 `./book bundle inspect <file.bookbundle.zip>`，报告真实校验结果、版本、标题、generations、Quality、Source inclusion 和 external rule dependencies。“导入这个 Bundle”路由 `./book bundle import <file.bookbundle.zip>`。安全校验、清单、冲突和事务都由 Core 执行，Skill 不解压 ZIP、不编写导入算法、不直接修改 canonical。
+
+Reader stale 时按 Core 提示先静态 rerender，不重复模型任务；FAILED / stale Knowledge 或未知版本/损坏/冲突时停止并报告，不忽略检查。完全相同快照 no-op；不同 generation 或 Human state 不覆盖、不合并、不自动解锁或重绑定。
+
+导入后检查 status。无原文件时 Open Original / reparse 不可用，当前 normalized Citation / L5 和 Book Ask 仍可用。使用导入库当前 Ask Context 执行新问题，不能用旧答案代替。Global/Type Rule 正文不随包导入，新的任务只使用当地可用规则，并报告缺失/变化依赖；本书规则保留。
+
+Bundle 不是 Backup / Restore：不包含 Ask history、旧 Tasks/Runs、runtime、历史 Knowledge generations 或全库 SQLite，不声称恢复执行状态。架构见 [ADR-022](../../../docs/adr/ADR-022-book-bundle.md)。Phase 9 overall IN PROGRESS，Phase 9C NOT STARTED，不进入 Backup/Restore 或整本 Benchmark。

@@ -4,11 +4,11 @@ Book Distiller 是一个本地、Codex 驱动的书籍知识蒸馏系统。
 
 ## 当前状态
 
-**Phase 9A：Book Ask。基于 Effective Knowledge、当前 Verification 和 Source Evidence 的单书问答，保留 Phase 1–8 的全部能力。**
+**Phase 9B：Book Bundle。安全导出、检查、导入单书当前快照，保留 Phase 9A Book Ask 与 Phase 1–8 能力。Phase 9 overall 仍为 IN PROGRESS。**
 
 已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization、确定性 Parse Quality、Codex Workflow Protocol、Context Package、Book Classification、Analysis Chunk、Atomic Claims、Chapter Knowledge Atoms、Concept Registry、跨章关联/去重决策、Core Ideas、Mental Models、Meta Principles、Book Memory、Citation Verification、Fidelity Review、Coverage Review 和 Quality Gate。
 Docling 在进程内解析 PDF、EPUB、DOCX、Markdown；TXT 由轻量 PlainTextAdapter 读取 UTF-8 段落。
-不推断作者、出版社或 ISBN。仍未完成完整 V1 蒸馏；未实现 Embedding、Vector DB、GraphRAG、Bundle、Backup、Restore、跨书 Ask、Benchmark、MinerU fallback 或外部研究。
+不推断作者、出版社或 ISBN。仍未完成完整 V1 蒸馏；未实现 Embedding、Vector DB、GraphRAG、Backup、Restore、跨书 Ask、Benchmark、MinerU fallback 或外部研究。
 
 ## 环境与安装
 
@@ -452,3 +452,36 @@ Skill 可路由“问这本书”“作者为什么”“原文在哪里”“�
 - Ask 只增加答案及 Task/runtime 记录，不修改 Knowledge、Verification、Quality Gate、Human state。SQLite 保持 schema 2。
 
 约束与边界见 [ADR-021](docs/adr/ADR-021-book-ask.md)。Answer Schema 由 Pydantic 生成，见 `schemas/types/book-answer.schema.json`。
+
+## Book Bundle — Phase 9B
+
+Bundle 是**单书当前快照**，不是 Backup / Restore，也不恢复 Task / Run 执行状态。
+
+```bash
+./book bundle export <book> --output /path/to/book.bookbundle.zip
+./book bundle export <book> --output /path/to/with-source.bookbundle.zip --include-source
+./book bundle inspect /path/to/book.bookbundle.zip
+./book bundle import /path/to/book.bookbundle.zip
+```
+
+默认包含 normalized Book / Blocks / SourceSpan、当前 Classification / Chapter / Book /
+Verification generations、Human edits / verify / lock / unlock journals、User Notes、Book Rules
+和当前 Reader；默认不包含原始 PDF / EPUB / DOCX 等文件。**仍包含源书派生正文与私人笔记**。
+`--include-source` 包含原文件且核对 SHA256。导入后不依赖旧机器绝对路径。
+无原文件时 Open Original / reparse 不可用，但 Citation / L5 / Effective Knowledge / 新 Ask 可用。
+
+不包含 Ask answers/history、runtime、Tasks/Runs、历史 Knowledge generations、SQLite、raw Docling、
+缓存、全局配置或 Global/Type Rule 正文。Global/Type Rule 只记录依赖 IDs/hashes；新任务对照当地
+实际可用规则，缺失或变化明确警告，不假装旧规则存在。Book Rules 随快照保留。
+
+Export 要求当前 Verification 为 PASS 或 NEEDS_REVIEW，Reader 当前有效。若提示 stale，先
+`./book render <book> --no-open`；导出不会偷偷重跑模型。Inspect 只读且进行完整安全/引用校验。
+Import 先完整验证，才登记 Book/Edition 并发布；不会伪造旧 Parse/AI Task。相同当前快照 no-op，
+任何 generation / Human state 冲突保守拒绝，不覆盖、不合并。失败保留原 Library。
+
+ZIP 采用白名单、流式 hash、路径与链接拒绝、体积上限；具体阈值与普通错误回滚/断电窗口边界见
+[ADR-022](docs/adr/ADR-022-book-bundle.md)。Pydantic 生成
+[BookBundleManifest 1.0](schemas/types/book-bundle.schema.json)。
+
+Phase 9A Book Ask：PASS；Phase 9B Book Bundle：PASS；Phase 9C Backup/Restore：NOT STARTED。
+Phase 9 overall：IN PROGRESS，尚未达到 V1 Release Candidate。

@@ -39,6 +39,9 @@ class IngestService:
         path = directory / source.stored_path if source.copy_mode == "copy" else Path(source.stored_path)
         if source.copy_mode == "copy" and not path.resolve().is_relative_to(directory.resolve()):
             raise StorageError(f"Copied source escapes its Library directory: {path}")
+        from book_distiller.bundle.receipt import source_omitted
+        if not path.exists() and source_omitted(directory, manifest):
+            return
         if not path.is_file():
             raise StorageError(f"Source unavailable: {path}. A referenced original may have moved or been deleted.")
         if path.stat().st_size != source.file_size or (full_hash and hash_source(path)[0] != source.sha256):

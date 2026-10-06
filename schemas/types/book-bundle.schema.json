@@ -1,0 +1,268 @@
+{
+  "$defs": {
+    "BundleFile": {
+      "additionalProperties": false,
+      "properties": {
+        "relative_path": {
+          "title": "Relative Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "minimum": 0,
+          "title": "Size",
+          "type": "integer"
+        },
+        "category": {
+          "enum": [
+            "canonical",
+            "verification",
+            "human",
+            "derived",
+            "source",
+            "metadata"
+          ],
+          "title": "Category",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relative_path",
+        "sha256",
+        "size",
+        "category"
+      ],
+      "title": "BundleFile",
+      "type": "object"
+    },
+    "ExternalRule": {
+      "additionalProperties": false,
+      "properties": {
+        "rule_id": {
+          "format": "uuid",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "global",
+            "type"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "book_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Book Type"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "applicable_workflows": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Applicable Workflows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rule_id",
+        "scope",
+        "sha256",
+        "applicable_workflows"
+      ],
+      "title": "ExternalRule",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "bundle_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Bundle Version",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by_version": {
+      "title": "Created By Version",
+      "type": "string"
+    },
+    "book_id": {
+      "format": "uuid",
+      "title": "Book Id",
+      "type": "string"
+    },
+    "edition_id": {
+      "format": "uuid",
+      "title": "Edition Id",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "source_mode": {
+      "enum": [
+        "normalized_only",
+        "included"
+      ],
+      "title": "Source Mode",
+      "type": "string"
+    },
+    "source_included": {
+      "title": "Source Included",
+      "type": "boolean"
+    },
+    "contains_source_derived_text": {
+      "const": true,
+      "default": true,
+      "title": "Contains Source Derived Text",
+      "type": "boolean"
+    },
+    "normalized_generation_id": {
+      "format": "uuid",
+      "title": "Normalized Generation Id",
+      "type": "string"
+    },
+    "classification_id": {
+      "format": "uuid",
+      "title": "Classification Id",
+      "type": "string"
+    },
+    "classification_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Classification Hash",
+      "type": "string"
+    },
+    "chapter_generation_ids": {
+      "additionalProperties": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Chapter Generation Ids",
+      "type": "object"
+    },
+    "book_generation_id": {
+      "format": "uuid",
+      "title": "Book Generation Id",
+      "type": "string"
+    },
+    "verification_generation_id": {
+      "format": "uuid",
+      "title": "Verification Generation Id",
+      "type": "string"
+    },
+    "reader_generation_id": {
+      "format": "uuid",
+      "title": "Reader Generation Id",
+      "type": "string"
+    },
+    "human_state_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Human State Hash",
+      "type": "string"
+    },
+    "book_rule_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Book Rule Hash",
+      "type": "string"
+    },
+    "external_rule_dependencies": {
+      "items": {
+        "$ref": "#/$defs/ExternalRule"
+      },
+      "title": "External Rule Dependencies",
+      "type": "array"
+    },
+    "quality_gate": {
+      "enum": [
+        "pass",
+        "needs_review"
+      ],
+      "title": "Quality Gate",
+      "type": "string"
+    },
+    "ask_ready": {
+      "const": true,
+      "default": true,
+      "title": "Ask Ready",
+      "type": "boolean"
+    },
+    "versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Versions",
+      "type": "object"
+    },
+    "pointers": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Pointers",
+      "type": "object"
+    },
+    "files": {
+      "items": {
+        "$ref": "#/$defs/BundleFile"
+      },
+      "title": "Files",
+      "type": "array"
+    },
+    "bundle_content_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Bundle Content Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "created_by_version",
+    "book_id",
+    "edition_id",
+    "title",
+    "source_sha256",
+    "source_mode",
+    "source_included",
+    "normalized_generation_id",
+    "classification_id",
+    "classification_hash",
+    "chapter_generation_ids",
+    "book_generation_id",
+    "verification_generation_id",
+    "reader_generation_id",
+    "human_state_hash",
+    "book_rule_hash",
+    "quality_gate",
+    "versions",
+    "pointers",
+    "files",
+    "bundle_content_hash"
+  ],
+  "title": "BookBundleManifest",
+  "type": "object"
+}
