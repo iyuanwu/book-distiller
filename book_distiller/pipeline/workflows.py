@@ -29,6 +29,9 @@ class Workflow:
         return hashlib.sha256(self.prompt_text().encode('utf-8')).hexdigest()
 
     def result_model(self):
+        if self.name == "ask_book":
+            from book_distiller.core.models.ask import BookAnswer
+            return BookAnswer
         if self.name in VERIFY_RESULT_MODELS:
             return VERIFY_RESULT_MODELS[self.name]
         if self.name in RESULT_MODELS:
@@ -45,7 +48,7 @@ class Workflow:
 
 def load_workflow(project: Path, name: str, types: list[str] | None = None) -> Workflow:
     """Resolve only registered local workflows; arbitrary paths are not workflows."""
-    if name not in {"classify", "extract_claims", "build_chapter_atoms"} | BOOK_WORKFLOWS | VERIFY_WORKFLOWS:
+    if name not in {"classify", "extract_claims", "build_chapter_atoms", "ask_book"} | BOOK_WORKFLOWS | VERIFY_WORKFLOWS:
         raise ValidationError(f"Unknown workflow: {name}. Unsupported workflow.")
     workflow = project / f"workflows/{name}.md"
     prompt = project / f"prompts/universal/{name}.md"
@@ -56,6 +59,6 @@ def load_workflow(project: Path, name: str, types: list[str] | None = None) -> W
             raise ValidationError(f"Missing {key} in {path}")
         return match.group(1)
     overlays = tuple(project / f"prompts/{kind}/{('synthesis' if name in BOOK_WORKFLOWS else name)}.md" for kind in dict.fromkeys(types or [])
-                     if kind in {'investment','philosophy','business'} and name != 'classify' and name not in VERIFY_WORKFLOWS)
+                     if kind in {'investment','philosophy','business'} and name not in {'classify', 'ask_book'} and name not in VERIFY_WORKFLOWS)
     return Workflow(name, 'classify_book' if name == 'classify' else name, workflow, prompt,
                     read_version(workflow, 'workflow_version'), read_version(prompt, 'prompt_version'), overlays, (types or [None])[0])

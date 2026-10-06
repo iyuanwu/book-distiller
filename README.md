@@ -4,11 +4,11 @@ Book Distiller 是一个本地、Codex 驱动的书籍知识蒸馏系统。
 
 ## 当前状态
 
-**Phase 8：Resume / Rerun / Human Override。保留 Phase 1–7 的蒸馏、核验和静态阅读能力，新增用户级 Run、检查点恢复、范围重跑及独立人工层。**
+**Phase 9A：Book Ask。基于 Effective Knowledge、当前 Verification 和 Source Evidence 的单书问答，保留 Phase 1–8 的全部能力。**
 
 已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization、确定性 Parse Quality、Codex Workflow Protocol、Context Package、Book Classification、Analysis Chunk、Atomic Claims、Chapter Knowledge Atoms、Concept Registry、跨章关联/去重决策、Core Ideas、Mental Models、Meta Principles、Book Memory、Citation Verification、Fidelity Review、Coverage Review 和 Quality Gate。
 Docling 在进程内解析 PDF、EPUB、DOCX、Markdown；TXT 由轻量 PlainTextAdapter 读取 UTF-8 段落。
-不推断作者、出版社或 ISBN。仍未完成完整 V1 蒸馏；未实现 Book Ask、RAG、Embedding、Bundle、Backup、Benchmark、MinerU fallback 或外部研究。
+不推断作者、出版社或 ISBN。仍未完成完整 V1 蒸馏；未实现 Embedding、Vector DB、GraphRAG、Bundle、Backup、Restore、跨书 Ask、Benchmark、MinerU fallback 或外部研究。
 
 ## 环境与安装
 
@@ -425,3 +425,30 @@ Note JSON 为 `{"target_ref":{...},"text":"这个观点值得回看第3章。"}`
 内容 edit 使相应下游失效；verify/lock/unlock/note 只让 Reader 显示过期。Reader 使用有效人工内容，显示人工修改/确认/锁定/User Note。重新打开 managed output 会读取独立 stale 提示；已打开页面需刷新。复制出去的静态导出仅代表生成时 SNAPSHOT。
 
 所有 Run、Human、Context、知识、核验、Reader 和源书数据仍在 gitignored Library/data 或隔离 HOME 中。详见 [ADR-018](docs/adr/ADR-018-run-resume-rerun.md)、[ADR-019](docs/adr/ADR-019-human-effective-knowledge.md)、[ADR-020](docs/adr/ADR-020-reader-human-state.md)。
+
+
+## Book Ask（Phase 9A）
+
+Book Ask 是 evidence-constrained QA。Core 对当前 Effective Knowledge 做确定性词法检索、证据链展开和有限 Context 选择；当前 Codex 按 `ask_book` workflow 回答，再由 Core 验证引用和身份后发布。No external search / No embedding / No vector DB / No cross-book Ask。
+
+```bash
+./book status <book>
+./book ask prepare <book> "What should remain readable while a candidate is prepared?"
+# 当前 Codex 阅读返回 Task 的 workflow.md / prompt.md / context.json / context.md / output.schema.json
+# 生成严格 BookAnswer JSON；不能用 Python、模板或测试 double 替代真实语义判断
+./book ask submit <task-uuid> --result <result.json>
+./book ask show <book> <answer-uuid>
+```
+
+Skill 可路由“问这本书”“作者为什么”“原文在哪里”“第3章讲什么”“X与Y有什么区别”“用书里的模型分析”“我写过什么笔记”。对话 follow-up 先展开成完整问题，Core 不读取隐藏聊天上下文。
+
+- PASS：ready。NEEDS_REVIEW：允许，但 Context 和答案必须带整书及相关问题警告。FAILED / stale：blocked，先完成所需重跑与核验，没有 `--ignore-quality`。
+- 当前知识只通过 `EffectiveKnowledgeResolver` 读取。Human modified 使用有效文本；Human verified / locked 不增加 AI evidence strength。
+- Source、AI synthesis/application、User Note 以 answer segments 区分。笔记不冒充作者证据。Book Memory 只用于方向，不是 Citation。
+- 证据不足是有效答案：`insufficient_evidence=true`。超出书籍范围还标记 `out_of_scope=true`，不联网、不用常识补全。
+- Context 1.4 默认 40,000 chars / 13,333 estimated tokens，最多 48 个对象、检查前 128 个候选根；保留完整引用链或显式省略，单条 Source excerpt 最多 1,800 chars，超长已核验范围会省略并限制 confidence。旧 Context 1.0–1.3 继续兼容。
+- Task 绑定 question、Book / Verification generations、Human state、classification、适用规则和版本资源。prepare 后变化拒绝旧结果；格式错误允许同 Task retry。
+- 私人 `library/<book>/ask/answers/<task-id>.json` 是答案权威，`history.jsonl` 仅索引。answer 与 Task 提交完成后补索引；索引失败可 `ask show` 修复，无需再次调用 Codex。保存的答案是绑定旧输入的快照，不自动宣称仍是当前答案。
+- Ask 只增加答案及 Task/runtime 记录，不修改 Knowledge、Verification、Quality Gate、Human state。SQLite 保持 schema 2。
+
+约束与边界见 [ADR-021](docs/adr/ADR-021-book-ask.md)。Answer Schema 由 Pydantic 生成，见 `schemas/types/book-answer.schema.json`。

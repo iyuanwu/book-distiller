@@ -1,11 +1,11 @@
 ---
 name: book-distiller
-description: 在 Book Distiller 中导入本地书籍、解析 Canonical Document、查看 Library/Parse/Classification 状态并执行书型分类。用户问“这是什么类型的书”“分析这本书的类型”“给这本书分类”时路由 classify workflow。支持章节 Claims/Atoms 和全书知识模型综合，包括 Concepts、Core Ideas、Mental Models、Meta Principles；支持引用核验、幻觉与重大遗漏检查、Fidelity Review 和 Quality Gate；支持生成静态阅读版、打开阅读器、L0–L5、知识地图、卡片与证据浏览，不支持问书。
+description: 在 Book Distiller 中导入本地书籍、解析 Canonical Document、查看 Library/Parse/Classification 状态并执行书型分类。用户问“这是什么类型的书”“分析这本书的类型”“给这本书分类”时路由 classify workflow。支持章节 Claims/Atoms 和全书知识模型综合，包括 Concepts、Core Ideas、Mental Models、Meta Principles；支持引用核验、幻觉与重大遗漏检查、Fidelity Review 和 Quality Gate；支持生成静态阅读版、打开阅读器、L0–L5、知识地图、卡片与证据浏览，支持基于当前有效知识与核验证据的单书问答。
 ---
 
 # Book Distiller
 
-Current implementation phase: Phase 8
+Current implementation phase: Phase 9A
 
 当前能力为 Document Foundation + Classification + Chapter Atomization + Book Knowledge Synthesis + Evidence & Quality Foundation + Progressive Static Reader。Skill 负责自然语言路由；Python CLI/Core 负责确定性操作；当前 Codex 是唯一 AI 推理引擎，不调用外部 LLM API。
 
@@ -38,7 +38,7 @@ Docling 支持 PDF、EPUB、DOCX、Markdown；TXT 使用本地 UTF-8 段落读�
 Workflow 定义步骤、分类体系与证据规则；Pydantic 生成的 Schema 定义结构；Prompt 提供执行说明；Skill 只负责路由。规则见 `workflows/classify.md`、`prompts/universal/classify.md`、`docs/adr/ADR-008-ai-task-protocol.md` 和 `docs/adr/ADR-009-context-package.md`，不要在此复制完整规则。
 `analysis/classification.json` 是当前分类唯一权威，SQLite 只保存索引/Task 状态；runtime 是私人任务材料，可在完成后归档或删除而不改变 canonical 结果。Skill 不主动清理。
 
-用户要求“蒸馏整本书”时，按已有路由完成所授权书籍的 Ingest、Parse、Classification、Claims、Atoms、Book synthesis、Verification 和 Render；仅在全部完成后称“这本书的可阅读蒸馏结果已经生成”。不声称整个 V1 已全部完成；尚无 Book Ask、RAG、Bundle、Backup、Benchmark、MinerU 或 Phase 9。
+用户要求“蒸馏整本书”时，按已有路由完成所授权书籍的 Ingest、Parse、Classification、Claims、Atoms、Book synthesis、Verification 和 Render；仅在全部完成后称“这本书的可阅读蒸馏结果已经生成”。不声称整个 V1 已全部完成；尚无 Embedding、Vector DB、GraphRAG、Bundle、Backup、Restore、跨书 Ask、Benchmark、MinerU 或 Phase 9B。
 自动测试仅使用原创 fixtures 和隔离 `BOOK_DISTILLER_HOME`，不处理私人 inbox。普通 pytest 不运行真实模型，真实解析需显式 `pytest --run-docling-real`。
 
 
@@ -111,3 +111,18 @@ HTML 用于交互，Markdown 用于便携阅读，JSON 用于结构化读取。�
 “添加笔记”用 `human note`，target_ref 必须 generation-bound；笔记属于 User，不是 Source。“设置全局/书型/本书规则”用 `human rule`，指定 applicable_workflows，type 需 book_type。规则只进入新 Task Human Guidance，不修改 prompts、不自动让 Library stale。系统/Schema/证据/锁不变量高于 Book、Type、Global 规则。
 
 Reader 显示 Human modified、Human verified、Locked 和 User Note。Human verified 与 AI Verification/Quality Gate 独立。语义 edit 后不得以旧 PASS 冒充当前；managed output 需重新打开/刷新读取本地 stale 投影，复制导出只代表生成时 SNAPSHOT。参见 [ADR-018](../../../docs/adr/ADR-018-run-resume-rerun.md)、[ADR-019](../../../docs/adr/ADR-019-human-effective-knowledge.md)、[ADR-020](../../../docs/adr/ADR-020-reader-human-state.md)。
+
+
+## Book Ask 路由（Phase 9A）
+
+“问这本书”“作者为什么……”“第3章讲什么”“X和Y有什么关系/区别”“原文在哪里”“书里有没有X”“用书里的模型分析……”“我写过什么笔记”路由 Ask。只针对已完成当前蒸馏与核验的单书。
+
+1. 解析确切书籍，`./book status <book>` 检查 Ask ready。FAILED / stale 时按 Core 诊断报告阻塞，不默用旧 PASS；NEEDS_REVIEW 必须保留警告。未授权的上游重跑不由问答自动触发。
+2. 将“那第二点呢”等上下文问题展开为完整问题，再调用 `./book ask prepare <book> "完整问题"`。
+3. 阅读 Task 的 workflow.md、prompt.md、context.md、context.json、request.json 和 output.schema.json。检索、引用链与预算由 Core 决定，不绕过 Context 去读全文或自行检索外部内容。
+4. 当前 Codex 真实完成证据约束问答。只使用 Effective Knowledge；区分 Source / AI synthesis或application / User Note。Human verified 和 locked 不等于更强的 AI evidence。Book Memory 不是 Citation。
+5. 证据不足明确说明并设置 insufficient_evidence；书外问题另设 out_of_scope。不能用模型常识补答案。只引用 Context 提供的 refs，不把 Note 写成作者观点，不输出隐藏推理。
+6. 写严格 BookAnswer JSON 到 Task result.json，执行 `./book ask submit <task-id> --result <result.json>`。格式错误可按已有最多两次修正规则 same-task retry；STALE_CONTEXT 必须重新 prepare 并重新判断，不只替换 hash。
+7. 成功后读取并展示实际 Answer、Evidence、Confidence、Quality warnings。`./book ask show <book> <answer-id>` 查看已保存快照，并可修复缺失 history 索引，无需重跑已完成 Codex。历史答案不自动代表当前状态。
+
+规则定义在 workflow、prompt、Pydantic Schema 和 Core，Skill 不复制 Retriever 算法。Ask 不修改 Knowledge、Verification、Quality Gate 或 Human state；答案、Context 和 history 保持私人且不进入 Git。没有外部搜索、embedding、vector DB、跨书 Ask 或 Phase 9B。

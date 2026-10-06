@@ -116,14 +116,14 @@ class ContextPackage(DocumentModel):
 class AIRequest(DocumentModel):
     protocol_version: Literal["1.0"] = PROTOCOL_VERSION
     task_id: UUID
-    task_type: Literal["classify_book", "extract_claims", "build_chapter_atoms", "normalize_concepts", "build_core_ideas", "build_mental_models", "build_meta_principles", "synthesis_reduce", "reduce_chapter_atoms", "verify_claim", "verify_atom", "verify_core_idea", "verify_mental_model", "verify_meta_principle", "repair_evidence", "review_chapter_coverage", "review_quality"] = "classify_book"
+    task_type: Literal["classify_book", "extract_claims", "build_chapter_atoms", "normalize_concepts", "build_core_ideas", "build_mental_models", "build_meta_principles", "synthesis_reduce", "reduce_chapter_atoms", "verify_claim", "verify_atom", "verify_core_idea", "verify_mental_model", "verify_meta_principle", "repair_evidence", "review_chapter_coverage", "review_quality", "ask_book"] = "classify_book"
     book_id: UUID
     edition_id: UUID
     source_sha256: Hash
     normalized_document: DocumentFingerprint
     workflow_version: str
     prompt_version: str
-    context_package_version: Literal["1.0", "1.1", "1.2", "1.3"] = CONTEXT_VERSION
+    context_package_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4"] = CONTEXT_VERSION
     context_hash: Hash
     workflow_sha256: Hash
     prompt_sha256: Hash

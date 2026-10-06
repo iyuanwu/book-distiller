@@ -68,12 +68,15 @@ class AITaskService:
         except Exception as exc:
             raise StorageError(f"Prepare failed: {exc}") from exc
 
-    def _prepare_locked(self, name, selector, *, budget=None, selection=None, knowledge=None, synthesis=None, verification=None):
+    def _prepare_locked(self, name, selector, *, budget=None, selection=None, knowledge=None, synthesis=None, verification=None, ask=None):
         workflow = load_workflow(self.project, name, knowledge['types'] if knowledge else synthesis['types'] if synthesis else verification['types'] if verification else None)
         manifest, directory = self._resolve(selector)
         document = load_canonical(directory, manifest, self.library.database)
         task = TaskRecord(edition_id=manifest.edition.edition_id, task_type=workflow.task_type)
-        if verification:
+        if ask:
+            from book_distiller.ask.service import AskService
+            context = AskService(self).build(directory, document, task.task_id, workflow, **ask)
+        elif verification:
             from book_distiller.pipeline.verification_context import build_verification_context
             context=build_verification_context(document,task.task_id,workflow,**verification['context'])
         elif synthesis:
@@ -84,16 +87,17 @@ class AITaskService:
             context = build_knowledge_context(document,task.task_id,workflow,**knowledge['context'])
         else:
             context = build_context_package(document, task.task_id, workflow, selection, budget)
-        from book_distiller.human.service import guidance
-        from book_distiller.human.resolver import EffectiveKnowledgeResolver
-        from book_distiller.pipeline.context_package import finalize_budget
-        types = knowledge['types'] if knowledge else synthesis['types'] if synthesis else verification['types'] if verification else []
-        context.human_guidance = guidance(self.library.files.root, directory, workflow.task_type, types)
-        context.human_guidance['protected_objects'] = EffectiveKnowledgeResolver(directory).protected()
-        context.human_guidance['lock_instruction'] = 'Do not modify or generate equivalent replacements for protected objects; Core carries them forward after dependency checks.'
-        finalize_budget(context)
-        if context.budget.selected_chars > context.budget.limits.max_chars:
-            raise ProtocolError('HUMAN_CONTEXT_TOO_LARGE','Human guidance exceeds bounded Context budget')
+        if not ask:
+            from book_distiller.human.service import guidance
+            from book_distiller.human.resolver import EffectiveKnowledgeResolver
+            from book_distiller.pipeline.context_package import finalize_budget
+            types = knowledge['types'] if knowledge else synthesis['types'] if synthesis else verification['types'] if verification else []
+            context.human_guidance = guidance(self.library.files.root, directory, workflow.task_type, types)
+            context.human_guidance['protected_objects'] = EffectiveKnowledgeResolver(directory).protected()
+            context.human_guidance['lock_instruction'] = 'Do not modify or generate equivalent replacements for protected objects; Core carries them forward after dependency checks.'
+            finalize_budget(context)
+            if context.budget.selected_chars > context.budget.limits.max_chars:
+                raise ProtocolError('HUMAN_CONTEXT_TOO_LARGE','Human guidance exceeds bounded Context budget')
         schema = workflow.output_schema()
         request = AIRequest(task_id=task.task_id, task_type=workflow.task_type, context_package_version=context.package_version, book_id=manifest.book.book_id,
             edition_id=manifest.edition.edition_id, source_sha256=manifest.source.sha256,
@@ -155,6 +159,9 @@ class AITaskService:
             # Rebuild the bounded selection to detect internally consistent but altered runtime data.
             if task['task_type']=='classify_book':
                 rebuilt = build_context_package(document, request.task_id, workflow, context.selection.spec, context.budget.limits)
+            elif task['task_type'] == 'ask_book':
+                from book_distiller.ask.service import AskService
+                rebuilt = AskService(self).build(directory, document, request.task_id, workflow, context.scope['question'], context.budget.limits.max_chars)
             elif task['task_type'] in VERIFY_WORKFLOWS:
                 from book_distiller.pipeline.verification_tasks import VerificationTasks
                 rebuilt=VerificationTasks(self).rebuild(directory,document,context,workflow)
@@ -165,13 +172,17 @@ class AITaskService:
                 from book_distiller.pipeline.chapter_tasks import ChapterTasks
                 rebuilt = ChapterTasks(self).rebuild(directory, document, context, workflow)
             from book_distiller.pipeline.context_package import finalize_budget
-            # Guidance is frozen per task; later user rules take effect only in new tasks.
-            rebuilt.human_guidance = context.human_guidance
+            # Older workflows freeze guidance; Ask must detect current applicable rule changes.
+            if task["task_type"] != "ask_book":
+                rebuilt.human_guidance = context.human_guidance
             finalize_budget(rebuilt)
             if rebuilt.context_hash != context.context_hash:
                 raise ValueError("Context no longer matches its Canonical selection")
             return request, context, document
         except Exception as exc:
+            if task["task_type"] == "ask_book" and task["status"] == "pending":
+                from book_distiller.core.enums import StageStatus
+                self.library.database.update_task_status(UUID(task["task_id"]), StageStatus.FAILED)
             raise ProtocolError("STALE_CONTEXT", f"{exc}. Prepare a new task.") from exc
 
     def submit(self, task_id: UUID, result_path: Path) -> Path:
@@ -180,7 +191,7 @@ class AITaskService:
             with self.library.files.locked():
                 self.library._initialize()
                 task = self.library.database.lookup_task(task_id)
-                if task is None or task["task_type"] not in {"classify_book","extract_claims","build_chapter_atoms"} | BOOK_WORKFLOWS | VERIFY_WORKFLOWS:
+                if task is None or task["task_type"] not in {"classify_book","extract_claims","build_chapter_atoms","ask_book"} | BOOK_WORKFLOWS | VERIFY_WORKFLOWS:
                     raise ProtocolError("TASK_NOT_FOUND", "No indexed AI task with that ID.")
                 manifest, directory = self._resolve(task["book_id"])
                 task_dir = safe_child(directory, f"runtime/tasks/{task_id}")
@@ -189,6 +200,8 @@ class AITaskService:
                 for name in ("request.json", "context.json", "context.md", "output.schema.json", "workflow.md", "prompt.md", "result.json", "validation.json", "apply.json"):
                     safe_child(directory, f"runtime/tasks/{task_id}/{name}")
                 canonical = safe_child(directory, "analysis/classification.json") if task['task_type']=='classify_book' else task_dir/'accepted.json'
+                if task['task_type']=='ask_book':
+                    canonical = safe_child(directory, f'ask/answers/{task_id}.json')
                 if task['task_type']!='classify_book':
                     safe_child(directory,f'runtime/tasks/{task_id}/accepted.json')
                 try:
@@ -208,6 +221,9 @@ class AITaskService:
                     accepted = json.loads((task_dir / "apply.json").read_text(encoding="utf-8"))
                     if accepted["result_hash"] != json_hash(result.model_dump(mode="json", exclude={"created_at"})):
                         raise ProtocolError("TASK_ALREADY_COMPLETED", "A completed task cannot accept a different result.")
+                    if task['task_type']=='ask_book':
+                        from book_distiller.ask.service import AskService
+                        return AskService(self).finish(directory, task_id)
                     if task['task_type'] in BOOK_WORKFLOWS | VERIFY_WORKFLOWS:
                         return task_dir/'accepted.json'
                     if task['task_type']!='classify_book':
@@ -265,6 +281,9 @@ class AITaskService:
                     complete(directory,'classification')
                 write_json(task_dir / "validation.json", {"status":"applied", "context_hash":request.context_hash,
                     "validated_at":datetime.now(timezone.utc).isoformat()})
+                if task['task_type']=='ask_book':
+                    from book_distiller.ask.service import AskService
+                    return AskService(self).finish(directory, task_id)
                 if task['task_type'] in BOOK_WORKFLOWS | VERIFY_WORKFLOWS:
                     return canonical
                 if task['task_type']!='classify_book':

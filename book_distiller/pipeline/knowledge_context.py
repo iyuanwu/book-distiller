@@ -21,6 +21,9 @@ class KnowledgeContext(ContextPackage):
 
 
 def parse_context(text: str) -> ContextPackage:
+    if json.loads(text).get("package_version")=="1.4":
+        from book_distiller.ask.service import AskContext
+        return AskContext.model_validate_json(text)
     if json.loads(text).get('package_version')=='1.3':
         from book_distiller.pipeline.verification_context import VerificationContext
         return VerificationContext.model_validate_json(text)

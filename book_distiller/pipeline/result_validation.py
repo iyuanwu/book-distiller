@@ -16,7 +16,10 @@ class ProtocolError(ValidationError):
 def validate_result(text: str, request: AIRequest, context: ContextPackage) -> BookClassification:
     """Reject invalid schemas, mismatched identity/provenance and unseen evidence."""
     try:
-        if request.task_type in VERIFY_RESULT_MODELS:
+        if request.task_type == "ask_book":
+            from book_distiller.core.models.ask import BookAnswer
+            model = BookAnswer
+        elif request.task_type in VERIFY_RESULT_MODELS:
             model=VERIFY_RESULT_MODELS[request.task_type]
         elif request.task_type in RESULT_MODELS:
             model=RESULT_MODELS[request.task_type]
@@ -39,6 +42,10 @@ def validate_result(text: str, request: AIRequest, context: ContextPackage) -> B
     for field, value in expected.items():
         if getattr(result, field) != value:
             raise ProtocolError("STALE_CONTEXT", f"Result {field} does not match its request; prepare a new task.")
+    if request.task_type == "ask_book":
+        from book_distiller.ask.validation import validate_answer
+        validate_answer(result, context)
+        return result
     if request.task_type in VERIFY_RESULT_MODELS:
         from book_distiller.pipeline.verification_validation import validate_verification
         validate_verification(result,context)

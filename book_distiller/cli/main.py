@@ -118,6 +118,9 @@ def _detail(manifest: Manifest, library: Path) -> None:
     from book_distiller.renderers.service import RenderService
     for label, value in RenderService(storage_root(find_project_root()), find_project_root()).describe(str(manifest.book.book_id), library).items():
         table.add_row(Text(label), Text(value))
+    from book_distiller.ask.service import AskService
+    for label, value in AskService(ai).describe(str(manifest.book.book_id)).items():
+        table.add_row(Text(label), Text(value))
     from book_distiller.pipeline.staleness import read as stale_state
     for key,reason in stale_state(library).items():table.add_row('Stale '+key,reason['reason'])
     Console().print(table)
@@ -319,6 +322,9 @@ def render(book: str, force: bool = typer.Option(False, "--force"),
 
 from book_distiller.cli.phase8 import register
 register(app)
+
+from book_distiller.cli.ask import register as register_ask
+register_ask(app)
 
 if __name__ == "__main__":
     app()

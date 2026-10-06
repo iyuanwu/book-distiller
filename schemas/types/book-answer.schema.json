@@ -1,0 +1,294 @@
+{
+  "$defs": {
+    "AnswerSegment": {
+      "additionalProperties": false,
+      "properties": {
+        "layer": {
+          "enum": [
+            "source",
+            "ai",
+            "user"
+          ],
+          "title": "Layer",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 6000,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Text",
+          "type": "string"
+        },
+        "knowledge_refs": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Knowledge Refs",
+          "type": "array"
+        },
+        "citation_refs": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Citation Refs",
+          "type": "array"
+        },
+        "human_note_refs": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 24,
+          "title": "Human Note Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "layer",
+        "text"
+      ],
+      "title": "AnswerSegment",
+      "type": "object"
+    },
+    "EngineMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "const": "codex",
+          "default": "codex",
+          "title": "Engine",
+          "type": "string"
+        }
+      },
+      "title": "EngineMetadata",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "answer_id": {
+      "format": "uuid",
+      "title": "Answer Id",
+      "type": "string"
+    },
+    "book_id": {
+      "format": "uuid",
+      "title": "Book Id",
+      "type": "string"
+    },
+    "edition_id": {
+      "format": "uuid",
+      "title": "Edition Id",
+      "type": "string"
+    },
+    "question": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Question",
+      "type": "string"
+    },
+    "answer": {
+      "maxLength": 16000,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Answer",
+      "type": "string"
+    },
+    "answer_type": {
+      "enum": [
+        "fact",
+        "concept",
+        "relationship",
+        "comparison",
+        "chapter",
+        "why",
+        "source_location",
+        "application",
+        "meta"
+      ],
+      "title": "Answer Type",
+      "type": "string"
+    },
+    "segments": {
+      "items": {
+        "$ref": "#/$defs/AnswerSegment"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "title": "Segments",
+      "type": "array"
+    },
+    "knowledge_refs": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Knowledge Refs",
+      "type": "array"
+    },
+    "citation_refs": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Citation Refs",
+      "type": "array"
+    },
+    "human_note_refs": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 24,
+      "title": "Human Note Refs",
+      "type": "array"
+    },
+    "quality_warnings": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Quality Warnings",
+      "type": "array"
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "title": "Confidence",
+      "type": "string"
+    },
+    "insufficient_evidence": {
+      "title": "Insufficient Evidence",
+      "type": "boolean"
+    },
+    "out_of_scope": {
+      "default": false,
+      "title": "Out Of Scope",
+      "type": "boolean"
+    },
+    "book_generation_id": {
+      "format": "uuid",
+      "title": "Book Generation Id",
+      "type": "string"
+    },
+    "verification_generation_id": {
+      "format": "uuid",
+      "title": "Verification Generation Id",
+      "type": "string"
+    },
+    "human_state_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Human State Hash",
+      "type": "string"
+    },
+    "question_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Question Hash",
+      "type": "string"
+    },
+    "classification_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Classification Hash",
+      "type": "string"
+    },
+    "applicable_rule_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Applicable Rule Hash",
+      "type": "string"
+    },
+    "task_id": {
+      "format": "uuid",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "context_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Context Hash",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "normalized_schema_version": {
+      "title": "Normalized Schema Version",
+      "type": "string"
+    },
+    "normalized_document_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Normalized Document Hash",
+      "type": "string"
+    },
+    "workflow_version": {
+      "title": "Workflow Version",
+      "type": "string"
+    },
+    "prompt_version": {
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "context_package_version": {
+      "const": "1.4",
+      "default": "1.4",
+      "title": "Context Package Version",
+      "type": "string"
+    },
+    "source_parse_quality": {
+      "enum": [
+        "pass",
+        "review_recommended"
+      ],
+      "title": "Source Parse Quality",
+      "type": "string"
+    },
+    "generated_by": {
+      "$ref": "#/$defs/EngineMetadata"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "answer_id",
+    "book_id",
+    "edition_id",
+    "question",
+    "answer",
+    "answer_type",
+    "segments",
+    "confidence",
+    "insufficient_evidence",
+    "book_generation_id",
+    "verification_generation_id",
+    "human_state_hash",
+    "question_hash",
+    "classification_hash",
+    "applicable_rule_hash",
+    "task_id",
+    "context_hash",
+    "source_sha256",
+    "normalized_schema_version",
+    "normalized_document_hash",
+    "workflow_version",
+    "prompt_version",
+    "source_parse_quality",
+    "generated_by"
+  ],
+  "title": "BookAnswer",
+  "type": "object"
+}
