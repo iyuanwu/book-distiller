@@ -84,12 +84,12 @@ def _detail(manifest: Manifest, library: Path) -> None:
         ("Slug", manifest.book.slug), ("Edition", str(manifest.edition.edition_id)),
         ("Source", manifest.source.original_filename), ("Stored path", manifest.source.stored_path),
         ("SHA256", manifest.source.sha256), ("Copy mode", manifest.source.copy_mode),
-        ("Library", str(library)), ("Status", "imported snapshot" if imported else manifest.book.status.value),
+        ("Library", str(library)), ("Status", "restored recovery state" if imported and imported.get("recovery_artifact") else "imported snapshot" if imported else manifest.book.status.value),
         ("Metadata", manifest.book.metadata_status), ("Created at", manifest.created_at.isoformat()),
     ):
         table.add_row(Text(label), Text(value))
     if imported:
-        table.add_row("Artifact provenance", "Imported snapshot; historical Tasks/Runs not executed locally")
+        table.add_row("Artifact provenance", "Restored history; execution leases discarded" if imported.get("recovery_artifact") else "Imported snapshot; historical Tasks/Runs not executed locally")
         table.add_row("Original source", "included" if imported["source_included"] else "unavailable; reparse unavailable")
         if imported.get("external_rule_dependencies"):
             table.add_row("External Human Rules", "Global/Type dependencies recorded; bodies excluded; new work checks local availability")
@@ -130,6 +130,17 @@ def _detail(manifest: Manifest, library: Path) -> None:
         table.add_row(Text(label), Text(value))
     from book_distiller.pipeline.staleness import read as stale_state
     for key,reason in stale_state(library).items():table.add_row('Stale '+key,reason['reason'])
+    from book_distiller.human.resolver import EffectiveKnowledgeResolver
+    human=EffectiveKnowledgeResolver(library)
+    table.add_row('Human overrides',str(len(human.events)))
+    table.add_row('Locked objects',str(sum(item['locked'] for item in human.inventory().values())))
+    with ai.library.database.connect() as connection:
+        rows=connection.execute('SELECT run_id,status FROM runs WHERE edition_id=? ORDER BY updated_at DESC,run_id',(str(manifest.edition.edition_id),)).fetchall()
+    table.add_row('Last Run',f'{rows[0][0]} ({rows[0][1]})' if rows else 'none')
+    resumable=next((row for row in rows if row['status']!='completed'),None)
+    table.add_row('Resumable Run',f'{resumable[0]} ({resumable[1]})' if resumable else 'none')
+    from book_distiller.bundle.receipt import source_display
+    table.add_row('Source availability','available' if source_display(library,manifest)['available'] else 'Original source unavailable')
     Console().print(table)
     if manifest.source.copy_mode == "reference":
         typer.echo("Warning: 如果原文件以后移动或删除，该 Edition 的 Source 会失效。")
@@ -337,6 +348,8 @@ register_ask(app)
 
 from book_distiller.cli.bundle import register as register_bundle
 register_bundle(app)
+from book_distiller.cli.backup import register as register_backup
+register_backup(app)
 
 if __name__ == "__main__":
     app()

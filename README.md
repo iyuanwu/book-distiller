@@ -4,7 +4,7 @@ Book Distiller 是一个本地、Codex 驱动的书籍知识蒸馏系统。
 
 ## 当前状态
 
-**Phase 9B：Book Bundle。安全导出、检查、导入单书当前快照，保留 Phase 9A Book Ask 与 Phase 1–8 能力。Phase 9 overall 仍为 IN PROGRESS。**
+**Phase 9C：Per-book Backup / Restore。保留单书历史、Human 与 Run/Task/checkpoint，恢复后可 Resume。Phase 9A / 9B / 9C 全部 PASS；V1 functional Release Candidate。Phase 10 尚未执行。**
 
 已支持 Ingest、Library、SQLite、Docling Parse、Canonical Normalization、确定性 Parse Quality、Codex Workflow Protocol、Context Package、Book Classification、Analysis Chunk、Atomic Claims、Chapter Knowledge Atoms、Concept Registry、跨章关联/去重决策、Core Ideas、Mental Models、Meta Principles、Book Memory、Citation Verification、Fidelity Review、Coverage Review 和 Quality Gate。
 Docling 在进程内解析 PDF、EPUB、DOCX、Markdown；TXT 由轻量 PlainTextAdapter 读取 UTF-8 段落。
@@ -483,5 +483,26 @@ ZIP 采用白名单、流式 hash、路径与链接拒绝、体积上限；具�
 [ADR-022](docs/adr/ADR-022-book-bundle.md)。Pydantic 生成
 [BookBundleManifest 1.0](schemas/types/book-bundle.schema.json)。
 
-Phase 9A Book Ask：PASS；Phase 9B Book Bundle：PASS；Phase 9C Backup/Restore：NOT STARTED。
-Phase 9 overall：IN PROGRESS，尚未达到 V1 Release Candidate。
+Phase 9A Book Ask：PASS；Phase 9B Book Bundle：PASS；Phase 9C Backup/Restore：PASS。
+Phase 9 overall：PASS；V1 functional Release Candidate。Phase 10 尚未执行。
+
+
+## Per-book Backup / Restore — Phase 9C
+
+`.bookbundle.zip` 是 current portable snapshot；`.bookbackup.zip` 是 recovery artifact，保存单书长期维护状态。
+
+```bash
+./book backup create <book> --output book.bookbackup.zip
+./book backup inspect book.bookbackup.zip
+./book restore book.bookbackup.zip
+./book status <book>
+./book resume <book>
+```
+
+Backup 保存仍保留的 normalized / Chapter / Book / Verification generations、current Reader、Human edit/verify/lock/unlock/rebase/Notes/Book Rules、Run/Task/run_tasks、必要 checkpoint、Task request/Context/result，以及 Ask history/answers。DB 只导出 schema 2 单书 JSON 子集，不复制 SQLite。copied Source 默认包含；external Source 默认不包含，只有显式 `--include-external-source` 才复制。缺少原文件时 reparse 不可用；已有有效 Knowledge / Verification / Reader / Ask 仍可用。
+
+Global/Type Rule 库只记录 ID/hash 依赖，不带走全部个人规则。历史 Task Context 中当时已注入的 Guidance 文本随原 Context 字节保留，以保证 hash/Resume；这些历史文本不会恢复为可用的 Global/Type Rule。恢复后缺失/变化会在 Human Guidance 中报告。运行中的 Run/Task 恢复为 paused/pending，不恢复 PID、执行锁或 lease owner。Resume 重新检查 Context/input/generation/workflow/schema，已完成且有效的任务复用，失效 checkpoint 不复用。
+
+Restore 仅支持空或不冲突的 Library；完全相同状态 no-op，发生过 Human/Run/Task/generation 修改则拒绝，无 merge/force-overwrite。Inspect 只读。归档先完整校验再发布；恢复通过 staging、SQLite transaction 和 post-validation。SIGKILL 后的已拥有 orphan 可在重复 restore 时检测、保留到 `data/restore-recovery` 并恢复；未知 orphan 保留并拒绝覆盖。尚不保证文件系统与 SQLite 的硬件级断电原子性。
+
+备份包含私人 Source、Human、Context、Ask 与执行历史，不进入 Git。历史长期增长会增加体积；当前没有自动 compaction、增量备份链、云备份或加密。详见 [ADR-023](docs/adr/ADR-023-backup-restore.md)。

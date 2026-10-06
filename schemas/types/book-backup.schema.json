@@ -1,0 +1,313 @@
+{
+  "$defs": {
+    "BackupFile": {
+      "additionalProperties": false,
+      "properties": {
+        "relative_path": {
+          "title": "Relative Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "minimum": 0,
+          "title": "Size",
+          "type": "integer"
+        },
+        "category": {
+          "enum": [
+            "canonical",
+            "verification",
+            "human",
+            "derived",
+            "source",
+            "metadata",
+            "runtime",
+            "ask"
+          ],
+          "title": "Category",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relative_path",
+        "sha256",
+        "size",
+        "category"
+      ],
+      "title": "BackupFile",
+      "type": "object"
+    },
+    "ExternalRule": {
+      "additionalProperties": false,
+      "properties": {
+        "rule_id": {
+          "format": "uuid",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "global",
+            "type"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "book_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Book Type"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "applicable_workflows": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Applicable Workflows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rule_id",
+        "scope",
+        "sha256",
+        "applicable_workflows"
+      ],
+      "title": "ExternalRule",
+      "type": "object"
+    },
+    "RunTaskRow": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "task_id": {
+          "format": "uuid",
+          "title": "Task Id",
+          "type": "string"
+        },
+        "stage": {
+          "enum": [
+            "parse",
+            "classification",
+            "claims",
+            "atoms",
+            "book",
+            "verification",
+            "render"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "chapter_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Chapter Id"
+        }
+      },
+      "required": [
+        "run_id",
+        "task_id",
+        "stage",
+        "chapter_id"
+      ],
+      "title": "RunTaskRow",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "backup_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Backup Version",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by_version": {
+      "title": "Created By Version",
+      "type": "string"
+    },
+    "book_id": {
+      "format": "uuid",
+      "title": "Book Id",
+      "type": "string"
+    },
+    "edition_id": {
+      "format": "uuid",
+      "title": "Edition Id",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "source_mode": {
+      "enum": [
+        "copied",
+        "external"
+      ],
+      "title": "Source Mode",
+      "type": "string"
+    },
+    "source_included": {
+      "title": "Source Included",
+      "type": "boolean"
+    },
+    "sqlite_schema_version": {
+      "const": 2,
+      "default": 2,
+      "title": "Sqlite Schema Version",
+      "type": "integer"
+    },
+    "normalized_generation_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Normalized Generation Id"
+    },
+    "generation_inventory": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Generation Inventory",
+      "type": "object"
+    },
+    "human_inventory": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Human Inventory",
+      "type": "object"
+    },
+    "human_state_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Human State Hash",
+      "type": "string"
+    },
+    "run_inventory": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Run Inventory",
+      "type": "object"
+    },
+    "task_inventory": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Task Inventory",
+      "type": "object"
+    },
+    "run_task_inventory": {
+      "items": {
+        "$ref": "#/$defs/RunTaskRow"
+      },
+      "title": "Run Task Inventory",
+      "type": "array"
+    },
+    "checkpoint_inventory": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Checkpoint Inventory",
+      "type": "array"
+    },
+    "external_rule_dependencies": {
+      "items": {
+        "$ref": "#/$defs/ExternalRule"
+      },
+      "title": "External Rule Dependencies",
+      "type": "array"
+    },
+    "ask_history_included": {
+      "const": true,
+      "default": true,
+      "title": "Ask History Included",
+      "type": "boolean"
+    },
+    "pointers": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Pointers",
+      "type": "object"
+    },
+    "files": {
+      "items": {
+        "$ref": "#/$defs/BackupFile"
+      },
+      "title": "Files",
+      "type": "array"
+    },
+    "backup_content_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Backup Content Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "created_by_version",
+    "book_id",
+    "edition_id",
+    "title",
+    "source_sha256",
+    "source_mode",
+    "source_included",
+    "normalized_generation_id",
+    "generation_inventory",
+    "human_inventory",
+    "human_state_hash",
+    "run_inventory",
+    "task_inventory",
+    "run_task_inventory",
+    "checkpoint_inventory",
+    "pointers",
+    "files",
+    "backup_content_hash"
+  ],
+  "title": "BookBackupManifest",
+  "type": "object"
+}

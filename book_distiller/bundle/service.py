@@ -10,7 +10,7 @@ import re
 import shutil
 import zipfile
 
-from book_distiller.bundle.archive import BundleLimits, MANIFEST, content_hash, safe_name, validate_archive
+from book_distiller.bundle.archive import BundleLimits, MANIFEST, content_hash, safe_name, validate_archive, publish_archive
 from book_distiller.bundle.models import BookBundleManifest, BundleFile, ExternalRule
 from book_distiller.core.errors import StorageError
 from book_distiller.core.ingest import IngestService
@@ -350,19 +350,7 @@ class BundleService:
                 external_rule_dependencies=sorted(dependencies.values(),key=lambda r:str(r.rule_id)),quality_gate=metadata['quality_gate'],
                 versions={'normalized':'1.0','context_package':'1.4','book_answer':'1.0','reader':'1.0'},pointers=plan.pointers,files=files,bundle_content_hash='0'*64)
             bundle.bundle_content_hash=content_hash(bundle)
-            destination.parent.mkdir(parents=True,exist_ok=True)
-            fd, tmp = mkstemp(prefix='.'+destination.name+'.',suffix='.tmp',dir=destination.parent);os.close(fd)
-            try:
-                with zipfile.ZipFile(tmp,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=6) as archive:
-                    archive.writestr(MANIFEST,bundle.model_dump_json(indent=2))
-                    for entry in files:
-                        archive.write(stage/entry.relative_path,entry.relative_path)
-                self.inspect(Path(tmp))
-                with open(tmp,'rb') as stream:os.fsync(stream.fileno())
-                # Exclusive final publication protects an existing bundle even from a racing exporter.
-                os.link(tmp,destination)
-            finally:
-                Path(tmp).unlink(missing_ok=True)
+            publish_archive(destination, stage, bundle, self.inspect)
             return bundle
 
     def import_bundle(self, archive):

@@ -13,6 +13,16 @@ MANIFEST = 'bundle_manifest.json'
 
 
 @dataclass(frozen=True)
+class ArchiveProfile:
+    manifest_name: str
+    model: type
+    hash_field: str
+
+
+BUNDLE_PROFILE = ArchiveProfile(MANIFEST, BookBundleManifest, 'bundle_content_hash')
+
+
+@dataclass(frozen=True)
 class BundleLimits:
     max_files: int = 50000
     max_total_bytes: int = 8 * 1024**3
@@ -32,9 +42,9 @@ def safe_name(name):
     return name
 
 
-def content_hash(manifest):
+def content_hash(manifest, hash_field='bundle_content_hash'):
     value = manifest.model_dump(mode='json') if hasattr(manifest, 'model_dump') else dict(manifest)
-    for key in ('created_at', 'bundle_content_hash'):
+    for key in ('created_at', hash_field):
         value.pop(key, None)
     return json_hash(value)
 
@@ -48,8 +58,9 @@ def regular(info):
         raise StorageError('BUNDLE_ENTRY_TYPE_MISMATCH')
 
 
-def validate_archive(archive, stage, limits=BundleLimits()):
+def validate_archive(archive, stage, limits=BundleLimits(), profile=BUNDLE_PROFILE):
     """Validate complete inventory/bytes before handing staging to semantic validation."""
+    manifest_name = profile.manifest_name
     try:
         with zipfile.ZipFile(archive) as z:
             infos = z.infolist()
@@ -67,22 +78,22 @@ def validate_archive(archive, stage, limits=BundleLimits()):
                 if (info.file_size > limits.max_file_bytes or total > limits.max_total_bytes
                     or info.file_size > limits.max_compression_ratio * max(1, info.compress_size)):
                     raise StorageError('BUNDLE_LIMIT: size or compression ratio')
-            if MANIFEST not in names or names[MANIFEST].is_dir() or names[MANIFEST].file_size > limits.max_manifest_bytes:
+            if manifest_name not in names or names[manifest_name].is_dir() or names[manifest_name].file_size > limits.max_manifest_bytes:
                 raise StorageError('BUNDLE_MANIFEST_MISSING_OR_OVERSIZED')
-            with z.open(names[MANIFEST]) as stream:
+            with z.open(names[manifest_name]) as stream:
                 raw = stream.read(limits.max_manifest_bytes + 1)
                 if len(raw) > limits.max_manifest_bytes:
                     raise StorageError('BUNDLE_LIMIT: manifest')
-            manifest = BookBundleManifest.model_validate_json(raw)
-            if content_hash(manifest) != manifest.bundle_content_hash:
+            manifest = profile.model.model_validate_json(raw)
+            if content_hash(manifest, profile.hash_field) != getattr(manifest, profile.hash_field):
                 raise StorageError('BUNDLE_CONTENT_HASH_MISMATCH')
             declared = {f.relative_path: f for f in manifest.files}
-            if len(declared) != len(manifest.files) or MANIFEST in declared:
+            if len(declared) != len(manifest.files) or manifest_name in declared:
                 raise StorageError('BUNDLE_DUPLICATE_INVENTORY')
             for name in declared:
                 safe_name(name)
             files = {n for n,i in names.items() if not i.is_dir()}
-            if files != set(declared) | {MANIFEST}:
+            if files != set(declared) | {manifest_name}:
                 raise StorageError('BUNDLE_INVENTORY_MISMATCH: undeclared or missing file')
             for n,i in names.items():
                 if i.is_dir() and not any(p.startswith(n + '/') for p in declared):
@@ -112,3 +123,25 @@ def validate_archive(archive, stage, limits=BundleLimits()):
         raise
     except (OSError, ValueError, KeyError, RuntimeError, zipfile.BadZipFile, NotImplementedError) as exc:
         raise StorageError('BUNDLE_INVALID: ' + str(exc)) from exc
+
+
+def publish_archive(destination, root, manifest, validator, profile=BUNDLE_PROFILE):
+    """Self-validate privately, then publish exclusively; never replace an archive."""
+    import os
+    from pathlib import Path
+    from tempfile import mkstemp
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = mkstemp(prefix='.' + destination.name + '.', suffix='.tmp', dir=destination.parent)
+    os.close(fd)
+    try:
+        with zipfile.ZipFile(temporary, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+            archive.writestr(profile.manifest_name, manifest.model_dump_json(indent=2))
+            for entry in manifest.files:
+                archive.write(root / entry.relative_path, entry.relative_path)
+        validator(Path(temporary))
+        with open(temporary, 'rb') as stream:
+            os.fsync(stream.fileno())
+        os.link(temporary, destination)
+    finally:
+        Path(temporary).unlink(missing_ok=True)

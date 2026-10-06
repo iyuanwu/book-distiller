@@ -5,7 +5,7 @@ description: 在 Book Distiller 中导入本地书籍、解析 Canonical Documen
 
 # Book Distiller
 
-Current implementation phase: Phase 9B
+Current implementation phase: Phase 9C
 
 当前能力为 Document Foundation + Classification + Chapter Atomization + Book Knowledge Synthesis + Evidence & Quality Foundation + Progressive Static Reader。Skill 负责自然语言路由；Python CLI/Core 负责确定性操作；当前 Codex 是唯一 AI 推理引擎，不调用外部 LLM API。
 
@@ -38,7 +38,7 @@ Docling 支持 PDF、EPUB、DOCX、Markdown；TXT 使用本地 UTF-8 段落读�
 Workflow 定义步骤、分类体系与证据规则；Pydantic 生成的 Schema 定义结构；Prompt 提供执行说明；Skill 只负责路由。规则见 `workflows/classify.md`、`prompts/universal/classify.md`、`docs/adr/ADR-008-ai-task-protocol.md` 和 `docs/adr/ADR-009-context-package.md`，不要在此复制完整规则。
 `analysis/classification.json` 是当前分类唯一权威，SQLite 只保存索引/Task 状态；runtime 是私人任务材料，可在完成后归档或删除而不改变 canonical 结果。Skill 不主动清理。
 
-用户要求“蒸馏整本书”时，按已有路由完成所授权书籍的 Ingest、Parse、Classification、Claims、Atoms、Book synthesis、Verification 和 Render；仅在全部完成后称“这本书的可阅读蒸馏结果已经生成”。不声称整个 V1 已全部完成；尚无 Embedding、Vector DB、GraphRAG、Bundle、Backup、Restore、跨书 Ask、Benchmark、MinerU 或 Phase 9B。
+用户要求“蒸馏整本书”时，按已有路由完成所授权书籍的 Ingest、Parse、Classification、Claims、Atoms、Book synthesis、Verification 和 Render；仅在全部完成后称“这本书的可阅读蒸馏结果已经生成”。不声称整个 V1 已全部完成；尚无 Embedding、Vector DB、GraphRAG、跨书 Ask、Phase 10 Benchmark 或 MinerU。
 自动测试仅使用原创 fixtures 和隔离 `BOOK_DISTILLER_HOME`，不处理私人 inbox。普通 pytest 不运行真实模型，真实解析需显式 `pytest --run-docling-real`。
 
 
@@ -140,3 +140,14 @@ Reader stale 时按 Core 提示先静态 rerender，不重复模型任务；FAIL
 导入后检查 status。无原文件时 Open Original / reparse 不可用，当前 normalized Citation / L5 和 Book Ask 仍可用。使用导入库当前 Ask Context 执行新问题，不能用旧答案代替。Global/Type Rule 正文不随包导入，新的任务只使用当地可用规则，并报告缺失/变化依赖；本书规则保留。
 
 Bundle 不是 Backup / Restore：不包含 Ask history、旧 Tasks/Runs、runtime、历史 Knowledge generations 或全库 SQLite，不声称恢复执行状态。架构见 [ADR-022](../../../docs/adr/ADR-022-book-bundle.md)。Phase 9 overall IN PROGRESS，Phase 9C NOT STARTED，不进入 Backup/Restore 或整本 Benchmark。
+
+
+## Per-book Backup / Restore 路由（Phase 9C）
+
+- “备份这本书”：`book backup create <book> --output <file.bookbackup.zip>`。
+- “备份当前项目状态”：本阶段只支持单书恢复状态；已有明确 Book 就备份该书，没有目标则询问书籍，不推断为 whole-Library backup。
+- “看看这个备份里有什么”：`book backup inspect <file.bookbackup.zip>`，只读。
+- “恢复这个备份”：`book restore <file.bookbackup.zip>`，Core 执行完整校验、保守冲突策略和中断恢复。
+- “恢复后继续上次任务”：restore 成功后读取 `book status <book>`，对可恢复 Run 调用现有 `book resume <book>`，沿用 Task protocol，不伪造已完成任务或执行引擎。
+
+`.bookbackup.zip` 保存历史、Human journals、Run/Task/checkpoint 与 Ask history；`.bookbundle.zip` 是当前可移植快照。Source、状态归一化、白名单、事务、orphan 与碰撞规则由 Core 实现，不在 Skill 重写。External Source 只有用户明确要求时使用 `--include-external-source`。不新增 cloud/encryption/whole-Library/Phase 10。

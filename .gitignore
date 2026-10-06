@@ -35,3 +35,6 @@ htmlcov/
 /.cache/
 /models/
 !/tests/fixtures/document.pdf
+
+# Private per-book recovery archives
+*.bookbackup.zip
